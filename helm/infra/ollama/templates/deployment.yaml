@@ -21,7 +21,17 @@ spec:
       - name: model-puller
         image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
         command: ["/bin/sh", "-c"]
-        args: ["ollama serve & sleep 5 && ollama pull {{ .Values.models.initial }}"]
+        args:
+          - |
+            ollama serve & 
+            until ollama list >/dev/null 2>&1; do 
+              echo "Waiting for local Ollama server..."
+              sleep 2
+            done
+            {{- range .Values.models.initial }}
+            echo "Pulling model: {{ . }}"
+            ollama pull {{ . }}
+            {{- end }}
         volumeMounts:
         - name: data
           mountPath: /root/.ollama
@@ -33,6 +43,10 @@ spec:
         - containerPort: {{ .Values.service.targetPort }}
           name: api
         env:
+        # This prevents Ollama from trying to load multiple models 
+        # and overwhelming the RAM/VRAM.
+        - name: OLLAMA_MAX_LOADED_MODELS
+          value: "1"
         - name: OLLAMA_HOST
           value: {{ .Values.env.host | quote }}
         - name: OLLAMA_ORIGINS

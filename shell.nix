@@ -10,6 +10,9 @@
   gitUser = "admin";
   gitPass = "placeholder";
 
+  openWebUiDestPort = "9000";
+  openWebUiSourcePort = "8080";
+
   argoCdNamespace = "argocd";
   argocdLocalPort = "8888";
   argocdSvcPort = "443";
@@ -63,7 +66,7 @@
 
     if ! kind get clusters | grep -q "^${clusterName}$"; then
       echo "🎡 Creating Kind Cluster: ${clusterName}..."
-      kind create cluster --name "${clusterName}" --config ${kindConfig} --kubeconfig ${kubeconfig}
+      kind create cluster --name "${clusterName}" --config ${kindConfig} --kubeconfig ${kubeconfig} -v 6
     fi
 
     echo "🔗 Linking Gitea to Kind network..."
@@ -107,10 +110,17 @@
     ${sync-bin} "http://${gitUser}:${gitPass}@localhost:${gitPort}/${gitUser}/manifests.git"
   '';
 
+  expose = pkgs.writeShellScriptBin "expose" ''
+    pkill -f "kubectl port-forward"
+    kubectl port-forward svc/argocd-server -n ${argoCdNamespace} ${argocdLocalPort}:${argocdSvcPort} > /dev/null 2>&1 &
+    kubectl port-forward -n open-webui svc/open-webui ${openWebUiDestPort}:${openWebUiSourcePort} > /dev/null 2>&1 &
+  '';
+
   up = pkgs.writeShellScriptBin "up" ''
     infra-up
     argocd-up
     sync-helm
+    expose
   '';
 
   down = pkgs.writeShellScriptBin "down" ''
@@ -146,6 +156,7 @@
     printf "\033[1;32m%-15s\033[0m %s\n" "helm-deps-update" "Update helm chart deps in this repo recursively"
     printf "\033[1;32m%-15s\033[0m %s\n" "sync-helm"         "OCI Hydrate -> Local Push -> Argo Sync"
     printf "\033[1;32m%-15s\033[0m %s\n" "sync-helm --dry-run" "Preview hydrated YAML structure"
+    printf "\033[1;32m%-15s\033[0m %s\n" "expose" "Port forward local host services"
     printf "\033[1;32m%-15s\033[0m %s\n" "down"         "Nuke everything (Cluster)"
     echo -e "\033[1;34m----------------------------\033[0m"
   '';
@@ -164,6 +175,7 @@ in
       argocd-up
       sync-helm
       helm-deps-update
+      expose
       sandbox-help
       down
     ];

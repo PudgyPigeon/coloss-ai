@@ -1,5 +1,7 @@
 replicaCount: 1
 
+fullnameOverride: "ollama-internal"
+
 image:
   repository: ollama/ollama
   tag: latest
@@ -7,10 +9,11 @@ image:
 
 # Model setup
 models:
-  # The model to pull on first start
-  initial: "llama3"
-  # Set to true to enable the initContainer puller
   pullOnStart: true
+  initial:
+    - "llama3.1:8b"
+    - "qwen2.5-coder:14b"
+    - "mistral-small:22b"
 
 # Networking
 service:
@@ -26,19 +29,16 @@ env:
 # Storage
 persistence:
   enabled: true
-  size: 10Gi
+  size: 50Gi
   accessMode: ReadWriteOnce
   # storageClass: "standard" # Uncomment to specify a class
 
 # Hardware Resources
 resources:
   limits:
-    memory: "8Gi"
+    memory: "16Gi" 
+    # nvidia.com/gpu: 1
     # nvidia.com/gpu: 1 # Uncomment when you enable GPU operator
   requests:
     cpu: "2"
-    memory: "4Gi"
-
-# For NixOS/WSL Kernel compatibility
-annotations: 
-  container.apparmor.security.beta.kubernetes.io/ollama: ""
+    memory: "8Gi"

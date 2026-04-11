@@ -60,7 +60,7 @@ spec:
       destination:
         server: {{ .Values.global.clusterServer | default "https://kubernetes.default.svc" }}
         # Standardizing namespace naming
-        namespace: "apps-{{`{{.path.basename}}`}}"
+        namespace: "{{`{{.path.basename}}`}}"
       syncPolicy:
         automated:
           prune: true

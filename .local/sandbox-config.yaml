@@ -2,11 +2,23 @@ kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
 nodes:
 - role: control-plane
-  # This section ensures the node can talk back to Nix host
   extraMounts:
+    # This is the mount that provides the actual GPU drivers
+    - hostPath: /usr/lib/wsl
+      containerPath: /usr/lib/wsl
+      readOnly: true
+    # CDI configs
+    - hostPath: /etc/cdi/nvidia.yaml
+      containerPath: /etc/cdi/nvidia.yaml
+      readOnly: true
+    # Required for the D3D12/DXG mapping on WSL2
+    - hostPath: /dev/dxg
+      containerPath: /dev/dxg
+    # --- Existing Nix/Host Mounts ---
     - hostPath: /etc/hosts
       containerPath: /etc/hosts
       readOnly: true
+  
   extraPortMappings:
   - containerPort: 80
     hostPort: 8080
@@ -14,9 +26,14 @@ nodes:
   - containerPort: 443
     hostPort: 8443
     protocol: TCP
-    
-# This tells the container runtime (containerd) to allow the local registry
+
 containerdConfigPatches:
 - |-
   [plugins."io.containerd.grpc.v1.crt".registry.configs."localhost:5001".tls]
     insecure_skip_verify = true
+
+
+
+# # --- CDI Support for containerd inside Kind ---
+# [plugins."io.containerd.grpc.v1.cri".containerd.runtimes.runc.options]
+#   BinaryName = "nvidia-container-runtime"

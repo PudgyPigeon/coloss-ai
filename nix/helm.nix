@@ -6,7 +6,8 @@
     if env == "sandbox"
     then "sandbox"
     else "main";
-  src = builtins.filterSource (path: type: true) ./..;
+  # src = builtins.filterSource (path: type: true) ./..;
+  src = pkgs.lib.cleanSource ./..;
   envValuesDir = "${src}/helm/values/${env}";
 
   tiers = {

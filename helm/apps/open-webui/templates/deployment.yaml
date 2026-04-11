@@ -3,8 +3,10 @@ kind: Deployment
 metadata:
   name: {{ include "open-webui.fullname" . }}
   namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ include "open-webui.name" . }}
 spec:
-  replicas: 1
+  replicas: {{ .Values.replicaCount | default 1 }}
   selector:
     matchLabels:
       app: {{ include "open-webui.name" . }}
@@ -16,14 +18,32 @@ spec:
       containers:
       - name: open-webui
         image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy | default "IfNotPresent" }}
         env:
         - name: OLLAMA_BASE_URL
           value: {{ .Values.ollama.baseUrl | quote }}
-        # Some web UIs also need to know their own port via ENV
         - name: PORT
-          value: {{ .Values.service.targetPort | quote }}
+          value: {{ .Values.service.targetPort | default 8080 | quote }}
+        # - name: WEBUI_URL
+        #   value: "http://127.0.0.1:8080"
+        - name: HOST  # Add this to ensure it listens globally
+          value: "0.0.0.0"
+        # Setting ENV to prod ensures the frontend assets are served correctly
+        - name: ENV
+          value: "prod"
         ports:
-        - containerPort: {{ .Values.service.targetPort }}
+        - containerPort: {{ .Values.service.targetPort | default 8080 }}
           name: http
         resources:
           {{- toYaml .Values.resources | nindent 10 }}
+        volumeMounts:
+        - name: webui-data
+          mountPath: /app/backend/data
+      volumes:
+      - name: webui-data
+        {{- if .Values.persistence.enabled }}
+        persistentVolumeClaim:
+          claimName: {{ include "open-webui.fullname" . }}
+        {{- else }}
+        emptyDir: {}
+        {{- end }}
