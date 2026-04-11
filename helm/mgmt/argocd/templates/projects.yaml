@@ -1,0 +1,53 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: management
+  namespace: {{ .Values.global.namespace }}
+spec:
+  description: "ArgoCD management plane orchestration"
+  destinations: 
+    - namespace: {{ .Values.global.namespace }}
+      server: {{ .Values.global.clusterServer }}
+  # No change needed if repoURL in values is updated to the Gitea URL
+  sourceRepos: 
+    - {{ .Values.global.repoURL | quote }}
+  clusterResourceWhitelist: 
+    - group: '*'
+      kind: '*'
+---
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: infra
+  namespace: {{ .Values.global.namespace }}
+spec:
+  description: "Cluster infrastructure"
+  destinations: 
+    - namespace: '*'
+      server: {{ .Values.global.clusterServer }}
+  sourceRepos: 
+    - {{ .Values.global.repoURL | quote }}
+  clusterResourceWhitelist: 
+    - group: '*'
+      kind: '*'
+---
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: apps
+  namespace: {{ .Values.global.namespace }}
+spec:
+  description: "Applications"
+  destinations: 
+    # Logic remains: allow apps to deploy into any namespace starting with 'apps-'
+    - namespace: 'apps-*'
+      server: {{ .Values.global.clusterServer }}
+  sourceRepos: 
+    - {{ .Values.global.repoURL | quote }}
+  # Blacklisting cluster-wide resources for safety in the apps tier
+  clusterResourceBlacklist: 
+    - group: '*'
+      kind: '*'
+  namespaceResourceWhitelist: 
+    - group: '*'
+      kind: '*'

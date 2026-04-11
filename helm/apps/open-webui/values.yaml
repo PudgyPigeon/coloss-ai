@@ -1,0 +1,22 @@
+# values.yaml
+image:
+  repository: ghcr.io/open-webui/open-webui
+  tag: main
+
+service:
+  type: ClusterIP
+  # The port you want to use in your browser/port-forward
+  port: 8080 
+  # The port the application is actually listening on
+  targetPort: 8080 
+
+ollama:
+  baseUrl: "http://ollama-internal:11434"
+
+# Set these to match your WSL/Kind resource constraints
+resources:
+  limits:
+    memory: "1Gi"
+  requests:
+    cpu: "200m"
+    memory: "512Mi"

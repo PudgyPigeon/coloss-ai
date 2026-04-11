@@ -1,0 +1,9 @@
+env: "production"
+clusterIssuer:
+  name: "letsencrypt-prod"
+  email: "hello@gmail.com"
+  server: "https://acme-v02.api.letsencrypt.org/directory"
+  ingressClass: "nginx"
+
+cert-manager:
+  installCRDs: true

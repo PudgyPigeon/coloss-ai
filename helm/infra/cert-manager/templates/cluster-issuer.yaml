@@ -1,0 +1,31 @@
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: {{ .Values.clusterIssuer.name | default "local-issuer" }}
+  labels:
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    # If you have a _helpers.tpl with cert-manager.labels, keep the line below. 
+    # Otherwise, the labels above will suffice.
+    {{- if (index .Subcharts "cert-manager") }}
+    {{- include "cert-manager.labels" . | nindent 4 }}
+    {{- end }}
+spec:
+  {{- /* Logic to switch between Self-Signed (Sandbox) and ACME (Prod) */ -}}
+  {{- if eq (.Values.env | default "sandbox") "sandbox" }}
+  # --- Sandbox Configuration ---
+  # Using self-signed for local development to avoid rate limits/external deps
+  selfSigned: {}
+  {{- else }}
+  # --- Cloud/Production Configuration (ACME) ---
+  acme:
+    # Note: .Values.clusterIssuer.email must be provided in your non-sandbox values.yaml
+    email: {{ .Values.clusterIssuer.email | required "ACME email is required for non-sandbox envs" }}
+    server: {{ .Values.clusterIssuer.server | default "https://acme-v02.api.letsencrypt.org/directory" }}
+    privateKeySecretRef:
+      name: {{ .Values.clusterIssuer.name | default "local-issuer" }}-key
+    solvers:
+    - http01:
+        ingress:
+          class: {{ .Values.clusterIssuer.ingressClass | default "nginx" }}
+  {{- end }}

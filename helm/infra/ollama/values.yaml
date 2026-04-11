@@ -1,0 +1,44 @@
+replicaCount: 1
+
+image:
+  repository: ollama/ollama
+  tag: latest
+  pullPolicy: IfNotPresent
+
+# Model setup
+models:
+  # The model to pull on first start
+  initial: "llama3"
+  # Set to true to enable the initContainer puller
+  pullOnStart: true
+
+# Networking
+service:
+  type: ClusterIP
+  port: 11434
+  targetPort: 11434
+
+# Environment Configuration
+env:
+  host: "0.0.0.0"
+  origins: "*"
+
+# Storage
+persistence:
+  enabled: true
+  size: 10Gi
+  accessMode: ReadWriteOnce
+  # storageClass: "standard" # Uncomment to specify a class
+
+# Hardware Resources
+resources:
+  limits:
+    memory: "8Gi"
+    # nvidia.com/gpu: 1 # Uncomment when you enable GPU operator
+  requests:
+    cpu: "2"
+    memory: "4Gi"
+
+# For NixOS/WSL Kernel compatibility
+annotations: 
+  container.apparmor.security.beta.kubernetes.io/ollama: ""

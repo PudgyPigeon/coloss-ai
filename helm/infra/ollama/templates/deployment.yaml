@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "ollama.fullname" . }}
+  labels:
+    app: {{ include "ollama.name" . }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ include "ollama.name" . }}
+  template:
+    metadata:
+      labels:
+        app: {{ include "ollama.name" . }}
+      annotations:
+        {{- toYaml .Values.annotations | nindent 8 }}
+    spec:
+      {{- if .Values.models.pullOnStart }}
+      initContainers:
+      - name: model-puller
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        command: ["/bin/sh", "-c"]
+        args: ["ollama serve & sleep 5 && ollama pull {{ .Values.models.initial }}"]
+        volumeMounts:
+        - name: data
+          mountPath: /root/.ollama
+      {{- end }}
+      containers:
+      - name: ollama
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        ports:
+        - containerPort: {{ .Values.service.targetPort }}
+          name: api
+        env:
+        - name: OLLAMA_HOST
+          value: {{ .Values.env.host | quote }}
+        - name: OLLAMA_ORIGINS
+          value: {{ .Values.env.origins | quote }}
+        resources:
+          {{- toYaml .Values.resources | nindent 10 }}
+        volumeMounts:
+        - name: data
+          mountPath: /root/.ollama
+      volumes:
+      - name: data
+        {{- if .Values.persistence.enabled }}
+        persistentVolumeClaim:
+          claimName: {{ include "ollama.fullname" . }}-storage
+        {{- else }}
+        emptyDir: {}
+        {{- end }}

@@ -1,0 +1,69 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: infra-factory
+  namespace: {{ .Values.global.namespace | default "argocd" }}
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    # 1. Use the native Git generator
+    - git:
+        repoURL: {{ .Values.global.repoURL }}
+        revision: {{ .Values.global.targetRevision | default "master" }}
+        # This looks for directories in the 'infra' folder of your Gitea repo
+        directories:
+          - path: "infra/*"
+  template:
+    metadata:
+      name: "infra-{{`{{.path.basename}}`}}"
+    spec:
+      project: infra # Ensure this matches your AppProject name
+      source:
+        repoURL: {{ .Values.global.repoURL }}
+        targetRevision: {{ .Values.global.targetRevision | default "master" }}
+        # .path.path is provided by the Git generator (e.g., 'infra/cert-manager')
+        path: "{{`{{.path.path}}`}}"
+      destination:
+        server: {{ .Values.global.clusterServer | default "https://kubernetes.default.svc" }}
+        namespace: "{{`{{.path.basename}}`}}"
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+---
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: apps-factory
+  namespace: {{ .Values.global.namespace | default "argocd" }}
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - git:
+        repoURL: {{ .Values.global.repoURL }}
+        revision: {{ .Values.global.targetRevision | default "master" }}
+        directories:
+          - path: "apps/*"
+  template:
+    metadata:
+      name: "apps-{{`{{.path.basename}}`}}"
+    spec:
+      project: apps
+      source:
+        repoURL: {{ .Values.global.repoURL }}
+        targetRevision: {{ .Values.global.targetRevision | default "master" }}
+        path: "{{`{{.path.path}}`}}"
+      destination:
+        server: {{ .Values.global.clusterServer | default "https://kubernetes.default.svc" }}
+        # Standardizing namespace naming
+        namespace: "apps-{{`{{.path.basename}}`}}"
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true

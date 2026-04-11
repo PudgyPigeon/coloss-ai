@@ -1,0 +1,29 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "open-webui.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ include "open-webui.name" . }}
+  template:
+    metadata:
+      labels:
+        app: {{ include "open-webui.name" . }}
+    spec:
+      containers:
+      - name: open-webui
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        env:
+        - name: OLLAMA_BASE_URL
+          value: {{ .Values.ollama.baseUrl | quote }}
+        # Some web UIs also need to know their own port via ENV
+        - name: PORT
+          value: {{ .Values.service.targetPort | quote }}
+        ports:
+        - containerPort: {{ .Values.service.targetPort }}
+          name: http
+        resources:
+          {{- toYaml .Values.resources | nindent 10 }}

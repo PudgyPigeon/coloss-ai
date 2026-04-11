@@ -1,0 +1,25 @@
+env: "sandbox"
+
+global:
+  namespace: "argocd"
+  repoURL: "http://sandbox-gitea:3000/admin/manifests.git"
+  targetRevision: "sandbox"
+  clusterServer: "https://kubernetes.default.svc"
+
+infra:
+  projectName: "infra-project"
+  apps:
+    - name: "cert-manager"
+    - name: "ingress-nginx"
+
+apps:
+  projectName: "apps-project"
+  services:
+    - name: "market-data-feed-rs"
+
+git:
+  enable: true
+  username: "admin"
+  password: "placeholder"
+
+#argocd: {} # for overwriting values.yaml later maybe

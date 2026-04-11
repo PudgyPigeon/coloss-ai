@@ -1,0 +1,24 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: argocd
+  namespace: {{ .Values.global.namespace }}
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: management
+  source:
+    repoURL: {{ .Values.global.repoURL }}
+    
+    # 2. targetRevision now points to 'master' (set in values)
+    targetRevision: {{ .Values.global.targetRevision }}
+    
+    path: {{ .Values.global.mgmtPath | default "mgmt/argocd" }}
+    
+  destination:
+    server: {{ .Values.global.clusterServer }}
+    namespace: {{ .Values.global.namespace }}
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
