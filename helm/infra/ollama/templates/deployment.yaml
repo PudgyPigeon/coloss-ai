@@ -51,6 +51,12 @@ spec:
           value: {{ .Values.env.host | quote }}
         - name: OLLAMA_ORIGINS
           value: {{ .Values.env.origins | quote }}
+        - name: OLLAMA_FLASH_ATTENTION
+          value: "true"
+        - name: NVIDIA_VISIBLE_DEVICES
+          value: "all"
+        - name: NVIDIA_DRIVER_CAPABILITIES
+          value: "compute,utility"
         resources:
           {{- toYaml .Values.resources | nindent 10 }}
         volumeMounts:

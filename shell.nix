@@ -78,7 +78,7 @@
         --gpus=nvidia.com \
         --nodes=${nodeCount} \
         --kubernetes-version=stable \
-        --force-systemd=true 
+        --force-systemd=true
 
     fi
 
@@ -86,8 +86,14 @@
   '';
 
   infra-up = pkgs.writeShellScriptBin "infra-up" ''
+    set -e
     gitea-up
     minikube-up
+
+    echo "🔗 Bridging Gitea to the Minikube network..."
+    docker network connect minikube ${gitServiceName}
+
+    echo "✅ Infrastructure is bridged."
   '';
 
   # 2. Management Layer
@@ -204,7 +210,7 @@ in
       export KUBECONFIG="$HOME/.kube/config"
 
       # Check if infra is actually up
-      CLUSTER_STATUS=$(kind get clusters 2>/dev/null | grep "^${clusterName}$" || true)
+      CLUSTER_STATUS=$(minikube status --format='{{.Host}}' 2>/dev/null | grep "Running" || true)
 
       echo -e "\n\033[1;36m┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓ \033[0m"
       if [[ -n "$CLUSTER_STATUS" ]]; then

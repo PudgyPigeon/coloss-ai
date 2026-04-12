@@ -35,7 +35,7 @@ persistence:
 resources:
   limits:
     memory: "8Gi"
-    # nvidia.com/gpu: 1 # Uncomment when you enable GPU operator
+    nvidia.com/gpu: 1 # Uncomment when you enable GPU operator
   requests:
     cpu: "2"
     memory: "4Gi"
