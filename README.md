@@ -28,6 +28,11 @@ OR
 
 Even if it fails it'll add some roles.
 
+### MINIKUBE
+```
+sudo nvidia-ctk runtime configure --runtime=docker && sudo systemctl restart docker
+```
+
 ### GPU operator recreation/deletion
 ```
 # Run the following three commands

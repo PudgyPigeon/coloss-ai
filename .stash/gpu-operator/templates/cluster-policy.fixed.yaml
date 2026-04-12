@@ -3,6 +3,8 @@ apiVersion: nvidia.com/v1
 kind: ClusterPolicy
 metadata:
   name: cluster-policy
+  annotations:
+    argocd.argoproj.io/sync-options: Replace=true
 spec:
   driver:
     enabled: false  # CRITICAL: Do not install drivers in WSL2

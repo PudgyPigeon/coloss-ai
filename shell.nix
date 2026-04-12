@@ -9,6 +9,7 @@
   gitPort = "3000";
   gitUser = "admin";
   gitPass = "placeholder";
+  nodeCount = toString 1;
 
   openWebUiDestPort = "9000";
   openWebUiSourcePort = "8080";
@@ -32,7 +33,7 @@
   '';
 
   # 1. Infrastructure Layer
-  infra-up = pkgs.writeShellScriptBin "infra-up" ''
+  gitea-up = pkgs.writeShellScriptBin "gitea-up" ''
     set -e
     if [ ! "$(docker ps -aq -f name=${gitServiceName})" ]; then
       echo "🚀 Starting Git Service with Push-to-Create enabled..."
@@ -63,18 +64,32 @@
 
       echo "✅ Gitea is ready. Push-to-Create is ACTIVE."
     fi
+  '';
 
-    if ! kind get clusters | grep -q "^${clusterName}$"; then
-      echo "🎡 Creating Kind Cluster: ${clusterName}..."
-      kind create cluster --name "${clusterName}" --config ${kindConfig} --kubeconfig ${kubeconfig} -v 6
+  minikube-up = pkgs.writeShellScriptBin "minikube-up" ''
+    set -e
+
+    if ! minikube status --format='{{.Host}}' 2>/dev/null | grep -q "Running"; then
+      echo "🎡 Starting Minikube with GPU support..."
+
+      minikube start \
+        --driver=docker \
+        --container-runtime=docker \
+        --gpus=nvidia.com \
+        --nodes=${nodeCount} \
+        --kubernetes-version=stable \
+        --force-systemd=true 
+
     fi
 
-    echo "🔗 Linking Gitea to Kind network..."
-    docker network disconnect kind ${gitServiceName} 2>/dev/null || true
-    docker network connect kind ${gitServiceName} || true
-
-    echo "✅ Infrastructure is UP."
+    echo "✅ Minikube is UP."
   '';
+
+  infra-up = pkgs.writeShellScriptBin "infra-up" ''
+    gitea-up
+    minikube-up
+  '';
+
   # 2. Management Layer
   argocd-up = pkgs.writeShellScriptBin "argocd-up" ''
     set -e
@@ -125,7 +140,7 @@
 
   down = pkgs.writeShellScriptBin "down" ''
     pkill -f "port-forward svc/argocd-server" || true
-    kind delete cluster --name ${clusterName} || true
+    minikube delete || true
     docker rm -f ${gitServiceName} || true
     rm -f ${kubeconfig}
   '';
@@ -150,7 +165,9 @@
   sandbox-help = pkgs.writeShellScriptBin "sandbox-help" ''
     echo -e "\033[1;34m--- 🛠️  Sandbox Commands ---\033[0m"
     printf "\033[1;32m%-15s\033[0m %s\n" "up"           "Run full setup (Infra + ArgoCD)"
-    printf "\033[1;32m%-15s\033[0m %s\n" "infra-up"     "Provision Gitea and Kind"
+    printf "\033[1;32m%-15s\033[0m %s\n" "gitea-up"     "Provision Gitea"
+    printf "\033[1;32m%-15s\033[0m %s\n" "minikube-up"  "Provision MiniKube"
+    printf "\033[1;32m%-15s\033[0m %s\n" "infra-up"     "Provision Gitea and Minikube"
     printf "\033[1;32m%-15s\033[0m %s\n" "argocd-up"    "Install ArgoCD and tunnel to ${argocdLocalPort}"
     printf "\033[1;32m%-15s\033[0m %s\n" "argocd-creds" "Display credentials for port ${argocdLocalPort}"
     printf "\033[1;32m%-15s\033[0m %s\n" "helm-deps-update" "Update helm chart deps in this repo recursively"
@@ -163,13 +180,15 @@
 in
   pkgs.mkShell {
     buildInputs = [
-      pkgs.kind
+      pkgs.minikube
       pkgs.kubectl
       pkgs.kubernetes-helm
       pkgs.argocd
       pkgs.git
       pkgs.curl
       up
+      gitea-up
+      minikube-up
       infra-up
       argocd-creds
       argocd-up
@@ -182,7 +201,7 @@ in
     # Note: It looks like it's not formatted correctly below but when you run 'nix develop' the box is lined up
     # so best left alone for aesthetics
     shellHook = ''
-      export KUBECONFIG="$PWD/kind-kubeconfig.yaml"
+      export KUBECONFIG="$HOME/.kube/config"
 
       # Check if infra is actually up
       CLUSTER_STATUS=$(kind get clusters 2>/dev/null | grep "^${clusterName}$" || true)

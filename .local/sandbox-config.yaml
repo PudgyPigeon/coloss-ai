@@ -45,15 +45,23 @@ nodes:
       - containerPort: 443
         hostPort: 8443
         protocol: TCP
-
+        
 containerdConfigPatches:
-  - |-
+  - |
+    [plugins."io.containerd.grpc.v1.cri".containerd.runtimes.nvidia]
+      runtime_type = "io.containerd.runc.v2"
+      privileged_without_host_devices = false
+      [plugins."io.containerd.grpc.v1.cri".containerd.runtimes.nvidia.options]
+        BinaryName = "/usr/local/nvidia/toolkit/nvidia-container-runtime"
+
+  - |
     [plugins."io.containerd.grpc.v1.cri".registry.configs."localhost:5001".tls]
       insecure_skip_verify = true
-  # --- CDI Integration ---
-  - |-
-    [plugins."io.containerd.grpc.v1.cri".containerd.runtimes.runc]
+
+  - |
+    [plugins."io.containerd.grpc.v1.cri".containerd]
       cdi_spec_dirs = ["/etc/cdi"]
+
 
 # kind: Cluster
 # apiVersion: kind.x-k8s.io/v1alpha4

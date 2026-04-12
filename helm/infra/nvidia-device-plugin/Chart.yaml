@@ -1,0 +1,16 @@
+apiVersion: v2
+name: nvidia-device-plugin
+description: Wrapper chart for NVIDIA device plugin and dependencies
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+
+dependencies:
+  - name: nvidia-device-plugin
+    version: "0.17.1 " # Match the version you are using
+    repository: "https://nvidia.github.io/k8s-device-plugin"
+  
+  # - name: node-feature-discovery
+  #   version: "0.16.6" # The dependency Helm was complaining about
+  #   repository: "https://kubernetes-sigs.github.io/node-feature-discovery/charts"
+  #   condition: nfd.enabled # Allows you to toggle it in values.yaml
