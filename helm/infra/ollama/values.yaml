@@ -36,8 +36,7 @@ persistence:
 # Hardware Resources
 resources:
   limits:
-    memory: "16Gi" 
-    # nvidia.com/gpu: 1
+    memory: "16Gi"
     # nvidia.com/gpu: 1 # Uncomment when you enable GPU operator
   requests:
     cpu: "2"

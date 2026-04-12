@@ -48,7 +48,7 @@
                 if [ -f "$ENV_VALS" ]; then
                   VALS_ARG="$VALS_ARG -f $ENV_VALS"
                 fi
-                
+
                 echo "Rendering $name into namespace $name..."
 
                 # Use $name for the namespace flag

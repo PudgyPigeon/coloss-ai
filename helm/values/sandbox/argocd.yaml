@@ -21,5 +21,4 @@ git:
   enable: true
   username: "admin"
   password: "placeholder"
-
 #argocd: {} # for overwriting values.yaml later maybe

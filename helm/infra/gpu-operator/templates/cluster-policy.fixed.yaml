@@ -1,0 +1,36 @@
+{{- if and (hasKey .Values.custom "clusterPolicy") (eq .Values.custom.clusterPolicy.create true) -}}
+apiVersion: nvidia.com/v1
+kind: ClusterPolicy
+metadata:
+  name: cluster-policy
+spec:
+  driver:
+    enabled: false  # CRITICAL: Do not install drivers in WSL2
+  toolkit:
+    enabled: true
+    installDir: /usr/local/nvidia/toolkit # Points to our NixOS mounts
+    env:
+      - name: NVIDIA_VISIBLE_DEVICES
+        value: all
+      - name: NVIDIA_DRIVER_CAPABILITIES
+        value: all
+      - name: NVIDIA_DISABLE_REQUIRE
+        value: "true" # Bypass the hardware check that was failing
+  devicePlugin:
+    enabled: true
+  gfd:
+    enabled: true
+  dcgmExporter:
+    enabled: true
+  dcgm:
+    enabled: false
+  daemonsets:
+    priorityClassName: system-node-critical
+    tolerations:
+    - effect: NoSchedule
+      key: nvidia.com/gpu
+      operator: Exists
+  sandboxWorkloads:
+    defaultWorkload: container
+    enabled: false
+{{- end -}}

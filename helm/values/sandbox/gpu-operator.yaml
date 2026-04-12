@@ -1,0 +1,40 @@
+namespace: gpu-operator
+
+# Pre-Installed NVIDIA GPU Drivers and NVIDIA Container Toolkit
+driver:
+  enabled: false
+
+toolkit:
+  enabled: true
+  env:
+    - name: NVIDIA_DISABLE_REQUIRE
+      value: "true"
+    - name: ANY_NV_RLS_DISABLE
+      value: "true"
+    - name: NVIDIA_VISIBLE_DEVICES
+      value: "all"
+    - name: NVIDIA_DRIVER_CAPABILITIES
+      value: "all"
+
+nfd:
+  enabled: false
+  nodefeaturerules: false
+  # serviceAccount:
+  #     create: true
+  #     name: node-feature-discovery
+
+cdi:
+  enabled: true
+
+operator:
+  defaultRuntime: containerd
+
+devicePlugin:
+  enabled: true
+
+gfd:
+  enabled: true
+
+custom:
+  clusterPolicy:
+    create: true

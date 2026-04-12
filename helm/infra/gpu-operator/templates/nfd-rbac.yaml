@@ -1,0 +1,52 @@
+# apiVersion: v1
+# kind: ServiceAccount
+# metadata:
+#   # Look for 'serviceAccountName' under 'node-feature-discovery'
+#   name: {{ index .Values "node-feature-discovery" "serviceAccountName" | default "node-feature-discovery" }}
+#   namespace: {{ .Release.Namespace }}
+# ---
+# apiVersion: rbac.authorization.k8s.io/v1
+# kind: ClusterRole
+# metadata:
+#   name: {{ index .Values "node-feature-discovery" "serviceAccountName" | default "node-feature-discovery" }}
+# rules:
+#   # 1. Core Node Management: Necessary for labeling and status updates
+#   - apiGroups: [""]
+#     resources: ["nodes", "nodes/status", "nodes/proxy", "pods"]
+#     verbs: ["get", "list", "watch", "patch", "update"]
+#   # 2. NFD Custom Resources: The heart of discovery logic
+#   - apiGroups: ["nfd.k8s-sigs.io"]
+#     resources: ["nodefeatures", "nodefeatures/status", "nodefeaturerules"]
+#     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+#   # 3. Topology Awareness: Fixes the 'noderesourcetopologies' forbidden error
+#   - apiGroups: ["topology.node.k8s.io"]
+#     resources: ["noderesourcetopologies"]
+#     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+#   # 4. Storage & Apps: Used for identifying hardware tied to volumes or owner references
+#   - apiGroups: ["storage.k8s.io"]
+#     resources: ["csinodes"]
+#     verbs: ["get", "list", "watch"]
+#   - apiGroups: ["apps"]
+#     resources: ["daemonsets"]
+#     verbs: ["get", "list", "watch"]
+#   # 5. Leader Election: Prevents multiple masters from fighting over labels
+#   - apiGroups: ["coordination.k8s.io"]
+#     resources: ["leases"]
+#     verbs: ["get", "list", "watch", "create", "update", "patch"]
+#   # 6. Observability: Allows NFD to report its status via events
+#   - apiGroups: [""]
+#     resources: ["events"]
+#     verbs: ["create", "patch", "update"]
+# ---
+# apiVersion: rbac.authorization.k8s.io/v1
+# kind: ClusterRoleBinding
+# metadata:
+#   name: {{ index .Values "node-feature-discovery" "serviceAccountName" | default "node-feature-discovery" }}
+# subjects:
+#   - kind: ServiceAccount
+#     name: {{ index .Values "node-feature-discovery" "serviceAccountName" | default "node-feature-discovery" }}
+#     namespace: {{ .Release.Namespace }}
+# roleRef:
+#   kind: ClusterRole
+#   name: {{ index .Values "node-feature-discovery" "serviceAccountName" | default "node-feature-discovery" }}
+#   apiGroup: rbac.authorization.k8s.io

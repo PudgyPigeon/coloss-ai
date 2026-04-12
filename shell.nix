@@ -197,7 +197,7 @@ in
       echo -e "\033[1;36m┃ Run '\033[1;32mup\033[1;36m' to provision your local infrastructure.      ┃\033[0m"
       echo -e "\033[1;36m┃ Type '\033[1;33msandbox-help\033[1;36m' to see available commands.        ┃\033[0m"
       echo -e "\033[1;36m┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛\033[0m\n"
-      
+
       alias k="kubectl"
       alias s-help="sandbox-help"
 

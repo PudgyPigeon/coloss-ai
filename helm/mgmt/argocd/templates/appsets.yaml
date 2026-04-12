@@ -7,7 +7,6 @@ spec:
   goTemplate: true
   goTemplateOptions: ["missingkey=error"]
   generators:
-    # 1. Use the native Git generator
     - git:
         repoURL: {{ .Values.global.repoURL }}
         revision: {{ .Values.global.targetRevision | default "master" }}
@@ -33,6 +32,8 @@ spec:
           selfHeal: true
         syncOptions:
           - CreateNamespace=true
+          - ServerSideApply=true          
+          - SkipDryRunOnMissingResource=true
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: ApplicationSet
@@ -67,3 +68,4 @@ spec:
           selfHeal: true
         syncOptions:
           - CreateNamespace=true
+          - ServerSideApply=true

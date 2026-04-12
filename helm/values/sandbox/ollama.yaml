@@ -1,1 +1,41 @@
-# sandbox
+replicaCount: 1
+
+fullnameOverride: "ollama-internal"
+
+image:
+  repository: ollama/ollama
+  tag: latest
+  pullPolicy: IfNotPresent
+
+# Model setup
+models:
+  pullOnStart: true
+  initial:
+    - "llama3.2:3b"
+
+# Networking
+service:
+  type: ClusterIP
+  port: 11434
+  targetPort: 11434
+
+# Environment Configuration
+env:
+  host: "0.0.0.0"
+  origins: "*"
+
+# Storage
+persistence:
+  enabled: true
+  size: 50Gi
+  accessMode: ReadWriteOnce
+  # storageClass: "standard" # Uncomment to specify a class
+
+# Hardware Resources
+resources:
+  limits:
+    memory: "8Gi"
+    # nvidia.com/gpu: 1 # Uncomment when you enable GPU operator
+  requests:
+    cpu: "2"
+    memory: "4Gi"

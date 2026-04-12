@@ -2,6 +2,6 @@ apiVersion: v2
 name: management-plane
 version: 1.0.0
 dependencies:
-- name: argo-cd
-  version: "9.5.0" # Current stable Helm chart version
-  repository: "https://argoproj.github.io/argo-helm"
+  - name: argo-cd
+    version: "9.5.0" # Current stable Helm chart version
+    repository: "https://argoproj.github.io/argo-helm"

@@ -28,6 +28,40 @@ OR
 
 Even if it fails it'll add some roles.
 
+### GPU operator recreation/deletion
+```
+# Run the following three commands
+
+kubectl delete clusterrolebinding gpu-operator-node-feature-discovery-prune
+kubectl delete clusterrole gpu-operator-node-feature-discovery-prune
+# If finalizers are stuck
+kubectl patch app infra-gpu-operator -n argocd \
+  --type merge \
+  -p '{"metadata":{"finalizers":null}}'
+
+```
+
+### GPU Node labeling on WSL2
+```
+kubectl label node sandbox-cluster-control-plane nvidia.com/gpu.deploy.container-toolkit=true --overwrite
+
+
+kubectl label node sandbox-cluster-control-plane nvidia.com/gpu.present=true --overwrite
+
+kubectl get node sandbox-cluster-control-plane -o jsonpath='{.metadata.labels.nvidia\.com/gpu\.present}'
+
+kubectl patch deployment gpu-operator-node-feature-discovery-master -n gpu-operator --type='json' -p='[{"op": "add", "path": "/spec/template/spec/containers/0/args/-", "value": "--deny-node-feature-group=nvidia.com"}]'
+```
+
+### NFD GPU sub chart SA + RBAC
+Created manually from custom template because there is a bug with the subchart deriving settings from the 
+top level chart. Too much of a pain to deal with the subchart, just create it.
+```
+# values.yaml
+node-feature-discovery:
+  serviceAccountName: "node-feature-discovery"  <-- custom field
+```
+
 ### Ollama Helm Chart running
 For now no script. You need to run the following on startup:
 ```
@@ -41,8 +75,14 @@ kubectl port-forward -n open-webui svc/open-webui 9000:8080 > /dev/null 2>&1 &
 
 
 # Resources
+https://github.com/nvidia/k8s-device-plugin   < --- look into this if operator doesnt work>
 
-## FluxCD + Capacitor
-https://gimlet.io/capacitor-next/
-https://oneuptime.com/blog/post/2026-03-06-use-capacitor-dashboard-flux-cd/view
-https://fluxcd.io/blog/2024/02/introducing-capacitor/
+https://github.com/nvidia/gpu-operator?tab=readme-ov-file
+
+https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/getting-started.html#prerequisites
+
+https://github.com/NVIDIA/nvkind
+
+https://www.reddit.com/r/kubernetes/comments/1ilb8v2/minikube_versus_kind_gpu_support/#:~:text=Some%20say%20that%20it's%20easier%20to%20gain,GPU%20operator**%20*%20**Kata%20containers**%20*%20**K3S%2DNVidia**
+
+https://github.com/NVIDIA/gpu-operator/issues/662

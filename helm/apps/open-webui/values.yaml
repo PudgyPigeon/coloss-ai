@@ -9,8 +9,8 @@ fullnameOverride: "open-webui"
 
 service:
   type: ClusterIP
-  port: 8080 
-  targetPort: 8080 
+  port: 8080
+  targetPort: 8080
 
 ollama:
   baseUrl: "http://ollama-internal.ollama.svc.cluster.local:11434"
@@ -19,7 +19,7 @@ persistence:
   enabled: true
   accessMode: ReadWriteOnce
   size: 2Gi
-  
+
 resources:
   limits:
     memory: "1Gi"
