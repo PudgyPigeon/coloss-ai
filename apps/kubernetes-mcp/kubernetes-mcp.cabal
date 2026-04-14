@@ -17,8 +17,8 @@ library
     import:           warnings
     exposed-modules:  
         Server,
-        -- Kubernetes,
-        -- Types,
+        Kubernetes,
+        Types,
         Config
     build-depends:    
         base ^>=4.21.0.0,
@@ -29,7 +29,12 @@ library
         http-types,
         optparse-applicative,
         aeson,
-        text,     
+        text,
+        bytestring,
+        kubernetes-api-client,
+        kubernetes-api,
+        http-client,
+        http-client-tls,     
     hs-source-dirs:   src
     default-language: GHC2024
 
@@ -51,5 +56,7 @@ test-suite kubernetes-mcp-test
     main-is:          Main.hs
     build-depends:
         base ^>=4.21.0.0,
-        sydtest,           
+        sydtest,
+        aeson,
+        bytestring,
         kubernetes-mcp
