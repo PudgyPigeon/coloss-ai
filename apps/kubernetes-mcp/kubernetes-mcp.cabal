@@ -31,6 +31,8 @@ library
         aeson,
         text,
         bytestring,
+        containers,
+        stm,
         kubernetes-api-client,
         kubernetes-api,
         http-client,
@@ -58,5 +60,6 @@ test-suite kubernetes-mcp-test
         base ^>=4.21.0.0,
         sydtest,
         aeson,
+        text,
         bytestring,
         kubernetes-mcp
