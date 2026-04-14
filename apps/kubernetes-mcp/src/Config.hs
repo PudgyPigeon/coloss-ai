@@ -1,15 +1,14 @@
-{-# LANGUAGE RecordWildCards #-}
-module Config 
-    ( Config(..)
-    , Port(..)
-    , get
-    ) where
+module Config (
+    Config (..),
+    Port (..),
+    get,
+) where
 
+-- import Control.Applicative ((<|>))
 import Data.Char (toLower)
-import Control.Applicative ((<|>))
+import Data.Maybe (fromMaybe)
 import System.Environment (getArgs, lookupEnv)
 import Text.Read (readMaybe)
-import Data.Maybe (fromMaybe)
 
 -------------------------------------------------------------------------------
 -- 1. Types & Validation
@@ -18,9 +17,9 @@ newtype Port = Port Int deriving (Show, Eq)
 
 -- | Pure validator for Port range
 mkPort :: Int -> Maybe Port
-mkPort n 
+mkPort n
     | n > 0 && n < 65_536 = Just (Port n)
-    | otherwise          = Nothing
+    | otherwise = Nothing
 
 -- | Sum type\Enum - The choices we allow in our logic
 data Env = Dev | Staging | Prod deriving (Show, Eq)
@@ -29,40 +28,44 @@ data Env = Dev | Staging | Prod deriving (Show, Eq)
 newtype EnvName = EnvName String deriving (Show, Eq)
 
 mkEnv :: String -> Maybe Env
-mkEnv "dev"     = Just Dev
+mkEnv "dev" = Just Dev
 mkEnv "staging" = Just Staging
-mkEnv "prod"    = Just Prod
-mkEnv _         = Nothing
+mkEnv "prod" = Just Prod
+mkEnv _ = Nothing
 
 data Config = Config
-    { port      :: Port
+    { port :: Port
     , env :: Env
-    } deriving (Show, Eq)
+    }
+    deriving (Show, Eq)
 
 -------------------------------------------------------------------------------
 -- 2. Defaults
 -------------------------------------------------------------------------------
 defaultConfig :: Config
-defaultConfig = Config 
-    { port      = Port 10_000
-    , env = Dev
-    }
+defaultConfig =
+    Config
+        { port = Port 10_000
+        , env = Dev
+        }
 
 -------------------------------------------------------------------------------
 -- 3. Configuration Loading (IO)
 -------------------------------------------------------------------------------
+
 -- | Primary entry point to fetch configuration
-get :: IO Config 
+get :: IO Config
 get = do
-    args         <- getArgs
-    envPort      <- lookupEnv "PORT"
-    envName      <- lookupEnv "ENV"
-    
+    args <- getArgs
+    envPort <- lookupEnv "PORT"
+    envName <- lookupEnv "ENV"
+
     -- Build base config from Environment or Defaults
-    let base = defaultConfig 
-          { port      = fromMaybe (port defaultConfig) (envPort >>= readMaybe >>= mkPort)
-          , env = fromMaybe (env defaultConfig) (fmap (map toLower) envName >>= mkEnv)
-          }
+    let base =
+            defaultConfig
+                { port = fromMaybe (port defaultConfig) (envPort >>= readMaybe >>= mkPort)
+                , env = fromMaybe (env defaultConfig) (envName >>= mkEnv . map toLower)
+                }
 
     -- Apply CLI overrides
     return $ parseArgs args base
@@ -70,13 +73,12 @@ get = do
 -------------------------------------------------------------------------------
 -- 4. Argument Parsing (The Smart Update Pattern)
 -------------------------------------------------------------------------------
+
 -- | Recursively walks the argument list and updates the Config record
 parseArgs :: [String] -> Config -> Config
 parseArgs ("--port" : v : rest) =
-    parseArgs rest . \cfg -> cfg { port = fromMaybe (port cfg) (readMaybe v >>= mkPort) }
-
+    parseArgs rest . \cfg -> cfg{port = fromMaybe (port cfg) (readMaybe v >>= mkPort)}
 parseArgs ("--env" : v : rest) =
-    parseArgs rest . \cfg -> cfg { env = fromMaybe (env cfg) (mkEnv (map toLower v)) }
-
+    parseArgs rest . \cfg -> cfg{env = fromMaybe (env cfg) (mkEnv (map toLower v))}
 parseArgs (_ : rest) = parseArgs rest
 parseArgs [] = id

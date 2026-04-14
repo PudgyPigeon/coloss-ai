@@ -1,0 +1,76 @@
+---
+id: aedacdf1-2fdd-46fa-ba73-bbb1cf8d7849
+---
+graph TD
+    %% EXTERNAL USERS & SOURCES
+    Founder((Startup Founder)) -- HTTPS/WSS --> Ingress
+    GitWatcher[GitHub/GitLab Webhooks] -- Events --> Ingress
+
+    subgraph K8S_Cluster [Kubernetes Cluster: Cloud Agnostic]
+        direction TB
+
+        %% NETWORK & SECURITY LAYER
+        Ingress[NGINX / Istio Ingress Gateway]         
+        NetPol[NetworkPolicies: Namespace Isolation]
+
+        %% FRONTEND TIER
+        subgraph NS_Front [Namespace: startup-ui]
+            OpenWebUI[Deployment: Open WebUI]
+            UI_Config[ConfigMap: BACKEND_URL]
+        end
+
+        %% CONTROL PLANE (THE BRAIN)
+        subgraph NS_Agent [Namespace: startup-brain]
+            direction TB
+            
+            %% The Custom Controller
+            Router[Deployment: Agentic Router / Controller]
+            
+            subgraph Memory [Persistence & Context]
+                direction LR
+                VectorDB[(StatefulSet: pgvector)]
+                Redis[(StatefulSet: Redis - State Store)]
+                PVC_V[PVC: 100Gi EBS/GPD] --- VectorDB
+                PVC_R[PVC: 20Gi EBS/GPD] --- Redis
+            end
+        end
+
+        %% TOOLING TIER (MCP)
+        subgraph NS_MCP [Namespace: startup-mcp]
+            direction LR
+            TechMCP[MCP Srv: Tech Audit]
+            MarketMCP[MCP Srv: Market Intel]
+            VCMCP[MCP Srv: YC/VC Criteria]
+        end
+
+        %% INFERENCE TIER (GPU)
+        subgraph NS_Inf [Namespace: startup-inference]
+            Ollama[StatefulSet: Ollama]
+            PVC_M[PVC: 200Gi - Model Weights] --- Ollama
+            Taint{{Taint: hardware=gpu:NoSchedule}}
+        end
+    end
+
+    %% LOGICAL DATA FLOWS
+    Ingress --> OpenWebUI
+    Ingress -- "Trigger Loop" --> Router
+    
+    %% The Reach (Internal DNS)
+    OpenWebUI -- "JSON-RPC / REST" --> Router
+    
+    %% The Tooling Loop
+    Router -- "MCP Protocol (SSE/Stdio)" --> TechMCP
+    Router -- "MCP Protocol (SSE/Stdio)" --> MarketMCP
+    Router -- "Semantic RAG Search" --> VectorDB
+    
+    %% Inference & Reasoning
+    Router -- "OpenAI-Compatible API" --> Ollama
+    
+    %% Reconciliation Logic
+    Router -- "Store/Check Status" --> Redis
+    Redis -- "Notify Change" --> OpenWebUI
+
+    %% STYLING
+    style NS_Inf fill:#fff1f0,stroke:#cf1322,stroke-width:2px
+    style NS_Agent fill:#f0f5ff,stroke:#1d39c4,stroke-width:2px
+    style NS_MCP fill:#f6ffed,stroke:#389e0d,stroke-dasharray: 5 5

@@ -1,0 +1,29 @@
+sequenceDiagram
+    participant Founder as Founder (Browser)
+    participant UI as Open WebUI Service
+    participant Router as Agentic Router (The Mind)
+    participant Senses as MCP Services (Tech/Market)
+    participant Memory as pgvector (The Hippocampus)
+    participant Engine as Ollama Service (RTX 5080)
+
+    %% STEP 1: INGESTION
+    Founder->>UI: Types: "Is my code YC-ready?"
+    UI->>Router: POST /v1/chat/completions (Standard OpenAI API)
+
+    %% STEP 2: PARALLEL ENRICHMENT (The Router "Reaches" out)
+    Note over Router, Senses: The Mind gathers context simultaneously
+    par Context Gathering
+        Router->>Senses: JSON-RPC: "Get current Git audit"
+        Senses-->>Router: JSON: [File diffs, architecture summary]
+        Router->>Memory: SQL: "Find relevant YC Playbooks"
+        Memory-->>Router: Text: [YC engineering standards]
+    end
+
+    %% STEP 3: EXECUTIVE SYNTHESIS (The "One Big Call")
+    Note over Router, Engine: Router bundles Senses + Memory + User Query
+    Router->>Engine: POST /api/generate (The "Mega-Prompt")
+    Engine-->>Router: Raw Reasoning / Strategic Advice
+
+    %% FINAL DELIVERY
+    Router-->>UI: Final Formatted Response
+    UI-->>Founder: "Here is your YC Readiness Report..."

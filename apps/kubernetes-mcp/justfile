@@ -1,28 +1,30 @@
 #!/usr/bin/env -S just --justfile
 
 # Justfile variables
-app_name := "kubernetes-mcp"
-app_entrypoint := "app/Main.hs"
-app_flags := "--port 30090 --env dev"
+app_name       := "kubernetes-mcp"
+app_flags      := "--port 30090 --env dev"
+log            := "warn"
 
-alias b := build
-alias r := reload
-
-log := "warn"
 export JUST_LOG := log
 
-# Default recipe
+# Aliases
+alias b := build
+alias r := reload
+alias w := watch
+alias f := fmt
+
+# Default: List recipes
 default:
     @just --list
 
-# # --- dev ---
+# --- dev ---
 
 # Update environment without subshells
 [group: 'dev']
 reload:
     direnv reload
 
-# Watch
+# Watch and develop with ghciwatch
 [group: 'dev']
 watch:
     ghciwatch \
@@ -32,119 +34,86 @@ watch:
       --watch app \
       --test-ghci "Main.main" \
       --clear
-# ghciwatch --command "cabal v2-repl exe:k8s-mcp" --watch src --watch app --watch test --clearjus^C
 
-# # Watch mode using ghcid
-# [group: 'dev']
-# watch +args="main":
-#     ghcid --command="cabal repl {{ app_name }} --enable-multi-repl" --test=":l MyLib; {{ args }}"
-# # watch +args='Main.main':
-# #     ghcid --command="cabal repl exe:k8s-mcp" --test="{{ args }}"
-# # watch +args='Main.main':
-# #     ghcid --command="cabal repl lib:k8s-mcp" --test="{{ args }}"
+# --- build ---
 
-# # --- build ---
 # Build the Haskell project
 [group: 'build']
 build:
     cabal build
 
-# Run the Haskell project - You can insert args
+# Build with profiling symbols enabled
+[group: 'build']
+build-profile:
+    cabal build --enable-profiling --ghc-options="-fprof-auto"
+
+# Run the project locally
 [group: 'build']
 run *args:
-    cabal run {{app_name}} -- {{args}}
+    cabal run {{ app_name }} -- {{ args }}
 
+# --- test ---
+
+# Run tests once
+[group: 'test']
+test:
+    cabal test --test-show-details=always
+
+# Watch tests using ghcid
 [group: 'test']
 watch-tests +args="Main.main":
-    ghcid --command="cabal repl k8s-mcp-test" --test="{{ args }}"
+    ghcid --command="cabal repl {{ app_name }}-test" --test="{{ args }}"
 
-# Build the final Nix artifact
+# --- check & format ---
+
+# FORCE: Format code and apply HLint refactors automatically
+[group: 'check']
+fmt:
+    nix fmt .
+    find src app -name "*.hs" -exec hlint --refactor --refactor-options="-i" {} \;
+    fourmolu --mode inplace src/ app/
+
+# CHECK: CI-style check (fails if messy)
+[group: 'check']
+ci:
+    nixpkgs-fmt --check *.nix
+    fourmolu --mode check src/ app/
+    hlint src/ app/ --fail-on suggestion
+    cabal check
+    @just build
+
+# --- profile ---
+
+# Performance analysis: Generates an interactive HTML dashboard
+[group: 'profile']
+profile:
+    cabal build --enable-profiling
+    # Run with EventLog enabled (+RTS -l)
+    cabal run {{ app_name }} -- +RTS -l -RTS {{ app_flags }}
+    eventlog2html {{ app_name }}.eventlog
+    @echo "Report generated: {{ app_name }}.eventlog.html"
+
+# --- nix ---
+
+# Build the final production artifact via Flake
 [group: 'nix']
 nix-build:
     nix build .#default
 
+# Run the Nix-built production app
+[group: 'nix']
+nix-run *args:
+    nix run .#default -- {{ args }}
 
-# # --- dev ---
+# --- misc ---
 
-# # Enter the Nix development shell (fallback for non-direnv users)
-# [group: 'dev']
-# shell:
-#     nix develop
+# Clean up all build artifacts
+[group: 'misc']
+clean:
+    rm -rf dist-newstyle result *.eventlog *.html
+    cabal clean
 
-# # Watch mode using ghcid
-# [group: 'dev']
-# watch +args='Main.main':
-#     ghcid --command="cabal repl lib:k8s-mcp" --test="{{ args }}"
-
-# # --- build ---
-
-# # Fast incremental build
-# [group: 'build']
-# build:
-#     cabal build
-
-# # Run the MCP server with arguments
-# [group: 'build']
-# run *args:
-#     cabal run k8s-mcp -- {{args}}
-
-# # --- test ---
-
-# # Run all tests
-# [group: 'test']
-# test:
-#     cabal test --test-show-details=always
-
-# # --- check ---
-
-# # CI-style check (Format, Lint, Build)
-# [group: 'check']
-# ci: fmt-check lint nix-build test
-
-# # Check formatting without applying changes
-# [group: 'check']
-# fmt-check:
-#     nixpkgs-fmt --check *.nix
-#     fourmolu --mode check src/ app/
-
-# # HLint check (The Haskell equivalent of Clippy)
-# [group: 'check']
-# lint:
-#     hlint src/ app/
-
-# # --- nix ---
-
-# # Reproducible build via Flake
-# [group: 'nix']
-# nix-build:
-#     nix build .#default
-
-# # Run the Nix-built app
-# [group: 'nix']
-# nix-run *args:
-#     nix run .#default -- {{args}}
-
-# # --- release ---
-
-# # SRE Release flow: Tag and push
-# [group: 'release']
-# publish:
-#     #!/usr/bin/env bash
-#     set -euo pipefail
-#     VERSION=$(grep -m 1 "version:" k8s-mcp.cabal | awk '{print $2}')
-#     echo "Releasing version $VERSION..."
-#     git tag -a "v$VERSION" -m "Release $VERSION"
-#     git push origin "v$VERSION"
-
-# # --- misc ---
-
-# # Clean up build artifacts and Nix store
-# [group: 'misc']
-# clean:
-#     rm -rf dist-newstyle result
-#     cabal clean
-
-# # Clean up Nix store specifically (Garbage Collection)
-# [group: 'misc']
-# gc:
-#     nix-collect-garbage -d
+# Clean up Nix store (Garbage Collection)
+[group: 'misc']
+gc:
+    nix-collect-garbage -d

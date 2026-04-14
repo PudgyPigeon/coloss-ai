@@ -1,0 +1,35 @@
+sequenceDiagram
+    autonumber
+    participant Watcher as Watcher Threads (Autonomic)
+    participant UI as Open WebUI (The Mouth)
+    participant Router as Agentic Router (The Mind)
+    participant Redis as Redis (The Thalamus)
+    participant MCP as MCP Services (The Senses)
+    participant VDB as pgvector (The Hippocampus)
+    participant Engine as Ollama / RTX 5080 (The Muscle)
+
+    Note over Watcher, Redis: --- ASYNCHRONOUS RECONCILIATION LOOP ---
+    Watcher->>MCP: Polling: "Audit latest Git commit"
+    MCP-->>Watcher: Return: Code changes + Summary
+    Watcher->>VDB: Query: "Get YC coding standards"
+    VDB-->>Watcher: Return: Playbook snippet
+    Watcher->>Engine: Reasoning: "Does this commit drift?"
+    Engine-->>Watcher: Result: "Drift detected (Auth bypass)"
+    Watcher->>Redis: Update: Set status="Warning" + score=0.6
+
+    Note over UI, Engine: --- SYNCHRONOUS USER REQUEST ---
+    UI->>Router: "How is my startup doing today?"
+    
+    %% Parallel Data Fetching
+    par Parallel Gather
+        Router->>Redis: Get: Current Health Object (Vital Signs)
+        Router->>VDB: Get: Recent historical context (Memory)
+        Router->>MCP: Get: Live market data (Perception)
+    end
+
+    %% Contextual Injection
+    Note over Router, Engine: Router bundles 'Vital Signs' + 'Memory' + 'Perception'
+    Router->>Engine: POST /api/generate (The One Big Call)
+    Engine-->>Router: "Based on your 0.6 score and the recent Auth bypass..."
+    
+    Router-->>UI: Streaming Response

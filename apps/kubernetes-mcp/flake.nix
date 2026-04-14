@@ -25,45 +25,60 @@
         pkgs = import nixpkgs { inherit system; };
         hpkgs = pkgs.haskell.packages.ghc912;
 
-        # # Haskell Packaging Logic
-        # haskellVersion = pkgs.haskell.packages.ghc910;
-        # haskellPkg = haskellVersion.developPackage {
-        #   root = ./.;
-        #   modifier = drv:
-        #     pkgs.haskell.lib.addBuildTools drv [
-        #       pkgs.zlib
-        #       pkgs.pkg-config
-        #     ];
-        # };
+        # Define the Haskell package
+        # callCabal2nix looks at your .cabal file to determine dependencies
+        haskellPkg = hpkgs.callCabal2nix "kubernetes-mcp" ./. { };
+
+        # 2. Add system-level modifiers (like pkg-config or zlib)
+        haskellPkgFinal = pkgs.haskell.lib.overrideCabal haskellPkg (drv: {
+          executableSystemDepends = [
+            pkgs.zlib
+            pkgs.pkg-config
+          ];
+        });
       in
       {
         # Formatting
         formatter = pkgs.nixpkgs-fmt; #pkgs.alejandra;
 
-        # Packages and Apps
-        # packages.default = haskellPkg;
-        # apps.default = {
-        #   type = "app";
-        #   program = "${haskellPkg}/bin/k8s-mcp";
-        # };
+        # Define the default package (nix build)
+        packages.default = haskellPkgFinal;
 
-        # Inline shell logic
-        # Defines `nix develop`
+        # Define the default app (nix run)
+        apps.default = {
+          type = "app";
+          program = "${haskellPkgFinal}/bin/kubernetes-mcp";
+        };
+
+        # Define nix develop shell
         devShells.default = pkgs.mkShell {
-          # inputsFrom = [ haskellPkg ];
+          # Use inputsFrom to ensure all dependencies of the package 
+          # are automatically available in the shell
+          inputsFrom = [ haskellPkgFinal ];
+
           buildInputs = with pkgs.haskellPackages; [
-            # Haskell Tooling
-            hpkgs.ghc
+            # Development Tooling
             hpkgs.cabal-install
             hpkgs.haskell-language-server
             hpkgs.ghcid
-            # Custom input -> output
+            hpkgs.fourmolu
+            hpkgs.hlint
+            hpkgs.apply-refact
+            hpkgs.eventlog2html
+
+            # Profiling & Performance
+            hpkgs.eventlog2html # Visualizing K8S MCP performance
+
+            # External Flake Tools
             just.packages.${system}.default
             ghciwatch.packages.${system}.default
-            # System Tools/NixPkgs
-            pkgs.zlib
-            pkgs.pkg-config
           ];
+
+          shellHook = ''
+            echo "--- Kubernetes MCP Development Environment ---"
+            echo "Compiler: $(ghc --version)"
+            echo "Tools available: fourmolu, hlint, eventlog2html, just"
+          '';
         };
       }
     );

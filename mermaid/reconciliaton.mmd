@@ -1,0 +1,79 @@
+graph TD
+    subgraph Watchers [The Watcher Processes]
+        GitWatch[Git Watcher: Monitors commits/docs]
+        MarketWatch[Market Watcher: Monitors competitor news]
+    end
+
+    subgraph ReconLoop [The Reconciliation Loop]
+        direction TB
+        Observe[1. Observe: Fetch Actual State via MCP]
+        Analyze[2. Analyze: Query Vector DB for Desired State]
+        Reason[3. Reason: Ask Ollama if Drift exists]
+        Act[4. Act: Update Redis & Notify Founder]
+    end
+
+    GitWatch --> Observe
+    Observe --> Analyze
+    Analyze --> Reason
+    Reason --> Act
+    Act -->|State Updated| Redis[(Redis: Status Cache)]graph TD
+    %% EXTERNAL ENTRY
+    Founder((Founder)) -- "HTTPS (Port 443)" --> Ingress[Ingress Controller / LoadBalancer]
+
+    subgraph K8S_CLUSTER [Kubernetes Cluster: Local Infrastructure]
+        direction TB
+
+        %% NAMESPACE: UI
+        subgraph NS_UI [Namespace: startup-ui]
+            Ingress -- "L7 Routing" --> UI_SVC[Service: open-webui-svc:80]
+            UI_SVC --> OpenWebUI[Pod: Open WebUI]
+        end
+
+        %% NAMESPACE: BRAIN (The Core Gateway)
+        subgraph NS_BRAIN [Namespace: startup-brain]
+            direction TB
+            Router_SVC[Service: router-svc:8080]
+            Router_Pod[Pod: Agentic Router / Controller]
+            
+            subgraph Data_Layer [Persistence]
+                DB_SVC[Service: pgvector-svc:5432] --> Postgres[(StatefulSet: pgvector)]
+                Cache_SVC[Service: redis-svc:6379] --> Redis[(StatefulSet: Redis)]
+            end
+        end
+
+        %% NAMESPACE: MCP (The Senses)
+        subgraph NS_MCP [Namespace: startup-mcp]
+            direction LR
+            Tech_SVC[Service: mcp-tech-svc:8080] --> Tech_Pod[Pod: Tech Auditor]
+            Mkt_SVC[Service: mcp-market-svc:8080] --> Mkt_Pod[Pod: Market Intel]
+        end
+
+        %% NAMESPACE: INFERENCE (The Muscle)
+        subgraph NS_INF [Namespace: startup-inference]
+            Ollama_SVC[Service: ollama-svc:11434] --> Ollama_Pod[StatefulSet: Ollama]
+        end
+    end
+
+    %% --- THE CLEAR LINE TRACE OF THE PATH ---
+
+    %% PATH 1: CONSCIOUS USER QUERY
+    OpenWebUI -- "1. API Call" --> Router_SVC
+    Router_SVC --> Router_Pod
+    
+    %% PATH 2: THE REACH (Logic Execution)
+    Router_Pod -- "2a. Context Retrieval" --> DB_SVC
+    Router_Pod -- "2b. Sensory Fetch" --> Tech_SVC
+    Router_Pod -- "2c. Sensory Fetch" --> Mkt_SVC
+    
+    %% PATH 3: THE REASONING (Inference)
+    Router_Pod -- "3. Inference Request" --> Ollama_SVC
+
+    %% PATH 4: THE AUTONOMIC REFLEX (Background)
+    GitWatcher[[GitHub Webhook]] -- "Event" --> Ingress
+    Ingress -- "Trigger Loop" --> Router_SVC
+    Router_Pod -- "Proactive Alert" --> OpenWebUI
+
+    %% STYLING
+    style Router_Pod fill:#f0f5ff,stroke:#1d39c4,stroke-width:3px
+    style Ollama_Pod fill:#fff1f0,stroke:#cf1322,stroke-width:2px
+    style NS_MCP fill:#f6ffed,stroke:#389e0d,stroke-dasharray: 5 5
