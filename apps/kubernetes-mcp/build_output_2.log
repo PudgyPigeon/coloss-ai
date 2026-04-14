@@ -1,0 +1,51 @@
+warning: Git tree '/home/nixos/Documents/agent_project/localhost_agent' is dirty
+building '/nix/store/52wsdmf776nqikqfipkhg59hcc6m1k1b-cabal2nix-kubernetes-mcp.drv'...
+building '/nix/store/f7akj1hh74mkhrkvyyr9yvcv2q6yrr8y-nix-shell-env.drv'...
+--- Kubernetes MCP Development Environment ---
+Compiler: The Glorious Glasgow Haskell Compilation System, version 9.12.2
+Tools available: fourmolu, hlint, eventlog2html, just
+cabal test --test-show-details=always
+Resolving dependencies...
+Build profile: -w ghc-9.12.2 -O1
+In order, the following will be built (use -v for more details):
+ - kubernetes-mcp-0.1.0.0 (lib) (configuration changed)
+ - kubernetes-mcp-0.1.0.0 (test:kubernetes-mcp-test) (configuration changed)
+Configuring library for kubernetes-mcp-0.1.0.0...
+Preprocessing library for kubernetes-mcp-0.1.0.0...
+Building library for kubernetes-mcp-0.1.0.0...
+Configuring test suite 'kubernetes-mcp-test' for kubernetes-mcp-0.1.0.0...
+Preprocessing test suite 'kubernetes-mcp-test' for kubernetes-mcp-0.1.0.0...
+Building test suite 'kubernetes-mcp-test' for kubernetes-mcp-0.1.0.0...
+[1 of 1] Compiling Main             ( test/Main.hs, dist-newstyle/build/x86_64-linux/ghc-9.12.2/kubernetes-mcp-0.1.0.0/t/kubernetes-mcp-test/build/kubernetes-mcp-test/kubernetes-mcp-test-tmp/Main.o ) [Source file changed]
+[2 of 2] Linking dist-newstyle/build/x86_64-linux/ghc-9.12.2/kubernetes-mcp-0.1.0.0/t/kubernetes-mcp-test/build/kubernetes-mcp-test/kubernetes-mcp-test [Objects changed]
+Running 1 test suites...
+Test suite kubernetes-mcp-test: RUNNING...
+[31mWARNING: Only one CPU core detected, make sure to compile your test suite with these ghc options:[m
+[31m         -threaded -rtsopts -with-rtsopts=-N[m
+[31m         (This is important for correctness as well as speed, as a parallel test suite can find thread safety problems.)[m
+[34mTests:[m
+
+[33mJSON-RPC Protocol Encoding (Types.hs)[m
+  [32m✓ [m[32msuccessfully encodes an execution response correctly[m                                                          [32m      0.07 ms[m
+[33mTypes Boundary - ResourceType ADT[m
+  [32m✓ [m[32msafely parses standard resources[m                                                                              [32m      0.02 ms[m
+  [32m✓ [m[32mgracefully fails on unknown strings instead of causing runtime stringly-typed crashes[m                         [32m      0.00 ms[m
+[33mServer Boundary - JSON-RPC Routing Pipeline[m
+  [32m✓ [m[32mgenerates a global handleError fallback for unknown tools or methods[m                                          [32m      0.01 ms[m
+  [32m✓ [m[32mhandles 'initialize' flawlessly[m                                                                               [32m      0.01 ms[m
+  [32m✓ [m[32mproperly proxies a successful 'get_namespaces' tool call through the mock boundary[m                            [32m      0.01 ms[m
+  [32m✓ [m[32mgracefully handles an injected cluster timeout error as a successful MCP content response with isError=True[m   [32m      0.01 ms[m
+[33mJSON-RPC Protocol Decoding (Types.hs)[m
+  [32m✓ [m[32msuccessfully decodes an MCP tools/list JSON-RPC request without params[m                                        [32m      0.02 ms[m
+  [32m✓ [m[32msuccessfully decodes an MCP initialize JSON-RPC request[m                                                       [32m      0.01 ms[m
+
+  Passed:                       [32m9[m
+  Failed:                       [32m0[m
+  Sum of test runtimes:[33m         0.00 seconds[m
+  Test suite took:     [33m         0.00 seconds[m
+
+
+Test suite kubernetes-mcp-test: PASS
+Test suite logged to:
+/home/nixos/Documents/agent_project/localhost_agent/apps/kubernetes-mcp/./dist-newstyle/build/x86_64-linux/ghc-9.12.2/kubernetes-mcp-0.1.0.0/t/kubernetes-mcp-test/test/kubernetes-mcp-0.1.0.0-kubernetes-mcp-test.log
+1 of 1 test suites (1 of 1 test cases) passed.

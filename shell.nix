@@ -211,6 +211,7 @@ pkgs.mkShell {
     expose
     sandbox-help
     down
+
   ];
   # Note: It looks like it's not formatted correctly below but when you run 'nix develop' the box is lined up
   # so best left alone for aesthetics
