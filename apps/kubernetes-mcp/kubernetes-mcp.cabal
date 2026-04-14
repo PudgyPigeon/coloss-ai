@@ -1,0 +1,54 @@
+cabal-version:      3.14
+name:               kubernetes-mcp
+version:            0.1.0.0
+synopsis:           Haskell MCP server for Kubernetes
+license:            Apache-2.0
+license-file:       LICENSE
+author:             PudgyPigeon
+maintainer:         tommynam1994@gmail.com
+category:           Model Context Protocol
+build-type:         Simple
+extra-doc-files:    CHANGELOG.md
+
+common warnings
+    ghc-options: -Wall
+
+library
+    import:           warnings
+    exposed-modules:  
+        Server,
+        -- Kubernetes,
+        -- Types,
+        Config
+    build-depends:    
+        base ^>=4.21.0.0,
+        fast-logger,
+        wai,
+        warp,
+        wai-extra,
+        http-types,
+        optparse-applicative,
+        aeson,
+        text         
+    hs-source-dirs:   src
+    default-language: GHC2024
+
+executable kubernetes-mcp
+    import:           warnings
+    main-is:          Main.hs
+    build-depends:
+        base ^>=4.21.0.0,
+        kubernetes-mcp
+    hs-source-dirs:   app
+    default-language: GHC2024
+
+test-suite kubernetes-mcp-test
+    import:           warnings
+    default-language: GHC2024
+    type:             exitcode-stdio-1.0
+    hs-source-dirs:   test
+    main-is:          Main.hs
+    build-depends:
+        base ^>=4.21.0.0,
+        sydtest,           
+        kubernetes-mcp

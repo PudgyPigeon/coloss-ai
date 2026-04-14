@@ -1,5 +1,6 @@
-{pkgs}: let
-  repoApps = import ./nix/apps.nix {inherit pkgs;};
+{ pkgs }:
+let
+  repoApps = import ./nix/apps.nix { inherit pkgs; };
   # Extract the program path from your CI factory
   sync-bin = repoApps.ci.apps.sync-sandbox.program;
 
@@ -9,6 +10,8 @@
   gitPort = "3000";
   gitUser = "admin";
   gitPass = "placeholder";
+  cpuCount = toString 4;
+  memCount = toString 20000;
   nodeCount = toString 1;
 
   openWebUiDestPort = "9000";
@@ -76,7 +79,9 @@
         --driver=docker \
         --container-runtime=docker \
         --gpus=nvidia.com \
-        --nodes=${nodeCount} \
+        --cpus ${cpuCount} \
+        --memory ${memCount} \
+        --nodes ${nodeCount} \
         --kubernetes-version=stable \
         --force-systemd=true
 
@@ -146,10 +151,13 @@
 
   down = pkgs.writeShellScriptBin "down" ''
     pkill -f "port-forward svc/argocd-server" || true
-    minikube delete || true
+    minikube stop || true 
     docker rm -f ${gitServiceName} || true
-    rm -f ${kubeconfig}
   '';
+      # minikube delete || true
+          # rm -f ${kubeconfig}
+
+
 
   helm-deps-update = pkgs.writeShellScriptBin "helm-deps-update" ''
     set -e
@@ -184,50 +192,50 @@
     echo -e "\033[1;34m----------------------------\033[0m"
   '';
 in
-  pkgs.mkShell {
-    buildInputs = [
-      pkgs.minikube
-      pkgs.kubectl
-      pkgs.kubernetes-helm
-      pkgs.argocd
-      pkgs.git
-      pkgs.curl
-      up
-      gitea-up
-      minikube-up
-      infra-up
-      argocd-creds
-      argocd-up
-      sync-helm
-      helm-deps-update
-      expose
-      sandbox-help
-      down
-    ];
-    # Note: It looks like it's not formatted correctly below but when you run 'nix develop' the box is lined up
-    # so best left alone for aesthetics
-    shellHook = ''
-      export KUBECONFIG="$HOME/.kube/config"
+pkgs.mkShell {
+  buildInputs = [
+    pkgs.minikube
+    pkgs.kubectl
+    pkgs.kubernetes-helm
+    pkgs.argocd
+    pkgs.git
+    pkgs.curl
+    up
+    gitea-up
+    minikube-up
+    infra-up
+    argocd-creds
+    argocd-up
+    sync-helm
+    helm-deps-update
+    expose
+    sandbox-help
+    down
+  ];
+  # Note: It looks like it's not formatted correctly below but when you run 'nix develop' the box is lined up
+  # so best left alone for aesthetics
+  shellHook = ''
+    export KUBECONFIG="$HOME/.kube/config"
 
-      # Check if infra is actually up
-      CLUSTER_STATUS=$(minikube status --format='{{.Host}}' 2>/dev/null | grep "Running" || true)
+    # Check if infra is actually up
+    CLUSTER_STATUS=$(minikube status --format='{{.Host}}' 2>/dev/null | grep "Running" || true)
 
-      echo -e "\n\033[1;36m┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓ \033[0m"
-      if [[ -n "$CLUSTER_STATUS" ]]; then
-          echo -e "\033[1;36m┃ 🚀 Sandbox Shell: \033[1;32mONLINE\033[1;36m                              ┃\033[0m"
-          echo -e "\033[1;36m┃ ArgoCD: localhost:${argocdLocalPort}                                ┃\033[0m"
-      else
-          echo -e "\033[1;36m┃ 🚀 Sandbox Shell: \033[1;33mREADY TO START\033[1;36m                      ┃\033[0m"
-      fi
-      echo -e "\033[1;36m┃ Run '\033[1;32mup\033[1;36m' to provision your local infrastructure.      ┃\033[0m"
-      echo -e "\033[1;36m┃ Type '\033[1;33msandbox-help\033[1;36m' to see available commands.        ┃\033[0m"
-      echo -e "\033[1;36m┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛\033[0m\n"
+    echo -e "\n\033[1;36m┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓ \033[0m"
+    if [[ -n "$CLUSTER_STATUS" ]]; then
+        echo -e "\033[1;36m┃ 🚀 Sandbox Shell: \033[1;32mONLINE\033[1;36m                              ┃\033[0m"
+        echo -e "\033[1;36m┃ ArgoCD: localhost:${argocdLocalPort}                                ┃\033[0m"
+    else
+        echo -e "\033[1;36m┃ 🚀 Sandbox Shell: \033[1;33mREADY TO START\033[1;36m                      ┃\033[0m"
+    fi
+    echo -e "\033[1;36m┃ Run '\033[1;32mup\033[1;36m' to provision your local infrastructure.      ┃\033[0m"
+    echo -e "\033[1;36m┃ Type '\033[1;33msandbox-help\033[1;36m' to see available commands.        ┃\033[0m"
+    echo -e "\033[1;36m┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛\033[0m\n"
 
-      alias k="kubectl"
-      alias s-help="sandbox-help"
+    alias k="kubectl"
+    alias s-help="sandbox-help"
 
-      if command -v kubectl >/dev/null; then
-        source <(kubectl completion bash | sed 's/kubectl/k/g')
-      fi
-    '';
-  }
+    if command -v kubectl >/dev/null; then
+      source <(kubectl completion bash | sed 's/kubectl/k/g')
+    fi
+  '';
+}

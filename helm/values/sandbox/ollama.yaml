@@ -11,7 +11,11 @@ image:
 models:
   pullOnStart: true
   initial:
-    - "llama3.2:3b"
+    - "llama3:8b"
+    - "gemma4:e4b"
+    # - "gemma4:26b"
+    - "granite-code:20b"
+    # - "x/flux2-klein:9b"
 
 # Networking
 service:
@@ -23,19 +27,27 @@ service:
 env:
   host: "0.0.0.0"
   origins: "*"
+  # Add these to leverage your 5080's capabilities
+  extraEnv: 
+    - name: OLLAMA_FLASH_ATTENTION
+      value: "true"
+    - name: NVIDIA_VISIBLE_DEVICES
+      value: "all"
+    - name: NVIDIA_DRIVER_CAPABILITIES
+      value: "compute,utility"
 
 # Storage
 persistence:
   enabled: true
   size: 50Gi
   accessMode: ReadWriteOnce
-  # storageClass: "standard" # Uncomment to specify a class
 
 # Hardware Resources
 resources:
   limits:
-    memory: "8Gi"
-    nvidia.com/gpu: 1 # Uncomment when you enable GPU operator
+    memory: "16Gi"
+    nvidia.com/gpu: 1 # Enabled: Minikube already sees this resource
   requests:
     cpu: "2"
-    memory: "4Gi"
+    memory: "8Gi"
+    nvidia.com/gpu: 1 # Best practice to request what you limit

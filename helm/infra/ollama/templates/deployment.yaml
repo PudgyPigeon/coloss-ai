@@ -32,6 +32,10 @@ spec:
             echo "Pulling model: {{ . }}"
             ollama pull {{ . }}
             {{- end }}
+        # Requesting GPU here ensures the puller doesn't hang if the 
+        # binary performs a hardware check on startup.
+        resources:
+          {{- toYaml .Values.resources | nindent 10 }}
         volumeMounts:
         - name: data
           mountPath: /root/.ollama
@@ -43,20 +47,16 @@ spec:
         - containerPort: {{ .Values.service.targetPort }}
           name: api
         env:
-        # This prevents Ollama from trying to load multiple models 
-        # and overwhelming the RAM/VRAM.
         - name: OLLAMA_MAX_LOADED_MODELS
           value: "1"
         - name: OLLAMA_HOST
           value: {{ .Values.env.host | quote }}
         - name: OLLAMA_ORIGINS
           value: {{ .Values.env.origins | quote }}
-        - name: OLLAMA_FLASH_ATTENTION
-          value: "true"
-        - name: NVIDIA_VISIBLE_DEVICES
-          value: "all"
-        - name: NVIDIA_DRIVER_CAPABILITIES
-          value: "compute,utility"
+        # Maps the extra environment variables from values.yaml
+        {{- if .Values.env.extraEnv }}
+        {{- toYaml .Values.env.extraEnv | nindent 8 }}
+        {{- end }}
         resources:
           {{- toYaml .Values.resources | nindent 10 }}
         volumeMounts:

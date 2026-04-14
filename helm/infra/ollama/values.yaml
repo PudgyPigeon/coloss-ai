@@ -12,8 +12,8 @@ models:
   pullOnStart: true
   initial:
     - "llama3.1:8b"
-    - "qwen2.5-coder:14b"
-    - "mistral-small:22b"
+    # - "qwen2.5-coder:14b"
+    # - "mistral-small:22b"
 
 # Networking
 service:

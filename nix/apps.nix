@@ -1,6 +1,7 @@
-{pkgs}: let
+{ pkgs }:
+let
   # Import the CI apps defined in ci.nix
-  ci = import ./ci.nix {inherit pkgs;};
+  ci = import ./ci.nix { inherit pkgs; };
 
   # Local utility apps for sandbox development
   utils = {
@@ -17,7 +18,8 @@
         + "/bin/cluster-info";
     };
   };
-in {
+in
+{
   # Standardized attribute names for Flake consumption
   inherit ci utils;
 

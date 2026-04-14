@@ -1,7 +1,8 @@
-{
-  pkgs,
-  env ? "sandbox",
-}: let
+{ pkgs
+, env ? "sandbox"
+,
+}:
+let
   targetBranch =
     if env == "sandbox"
     then "sandbox"
@@ -17,9 +18,10 @@
   };
 
   renderedManifests =
-    pkgs.runCommand "rendered-manifests-${env}" {
-      nativeBuildInputs = [pkgs.kubernetes-helm];
-    } ''
+    pkgs.runCommand "rendered-manifests-${env}"
+      {
+        nativeBuildInputs = [ pkgs.kubernetes-helm ];
+      } ''
             set -euo pipefail
             ${pkgs.lib.concatStringsSep "\n" (map (tier: "mkdir -p $out/${tier}") (pkgs.lib.attrNames tiers))}
 
@@ -71,7 +73,8 @@
               exit 1
             fi
     '';
-in {
+in
+{
   inherit renderedManifests;
 
   syncScript = pkgs.writeShellScriptBin "sync-${env}" ''

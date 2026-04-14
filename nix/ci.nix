@@ -1,4 +1,5 @@
-{pkgs}: let
+{ pkgs }:
+let
   # Instantiate the renderer for Sandbox
   sandboxManifests = import ./helm.nix {
     inherit pkgs;
@@ -10,7 +11,8 @@
     inherit pkgs;
     env = "prod";
   };
-in {
+in
+{
   apps = {
     # The application program entry points
     sync-sandbox = {
