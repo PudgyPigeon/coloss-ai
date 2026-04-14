@@ -1,8 +1,8 @@
 #!/usr/bin/env -S just --justfile
 
 # Justfile variables
-app_name       := "kubernetes-mcp"
-app_flags      := "--port 30090 --env dev"
+app_name       := "git-mcp"
+app_flags      := "--port 30901 --env dev"
 log            := "warn"
 
 export JUST_LOG := log

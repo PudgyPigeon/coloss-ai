@@ -1,0 +1,9 @@
+event: endpoint
+data: /message
+
+event: message
+data: {"id":1,"jsonrpc":"2.0","result":{"tools":[{"description":"Get local git status","inputSchema":{"properties":{},"type":"object"},"name":"git_status"},{"description":"Get recent git commits","inputSchema":{"properties":{"count":{"type":"integer"}},"type":"object"},"name":"git_log"},{"description":"Checkout branch","inputSchema":{"properties":{"branch":{"type":"string"},"isNew":{"type":"boolean"}},"type":"object"},"name":"git_checkout"},{"description":"Commit changes","inputSchema":{"properties":{"message":{"type":"string"}},"type":"object"},"name":"git_commit"},{"description":"Push changes","inputSchema":{"properties":{"remote":{"type":"string"}},"type":"object"},"name":"git_push"},{"description":"Create Merge Request","inputSchema":{"properties":{"body":{"type":"string"},"title":{"type":"string"}},"type":"object"},"name":"git_mr"}]}}
+
+event: message
+data: {"id":2,"jsonrpc":"2.0","result":{"content":[{"text":"AM app/Main.hs\n A flake.lock\nAM flake.nix\nAM git-mcp.cabal\nAM justfile\nAM src/Config.hs\nAM src/Git.hs\nAM src/Server.hs\nAM src/Types.hs\nAM test/Main.hs\n M ../kubernetes-mcp/justfile\n M ../kubernetes-mcp/test/Main.hs\n?? sse.log\n?? test-mcp-integration.sh\n","type":"text"}],"isError":false}}
+
