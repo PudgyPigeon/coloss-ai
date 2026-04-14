@@ -1,0 +1,9 @@
+event:endpoint
+data:/message
+
+event:message
+data:{"id":1,"jsonrpc":"2.0","result":{"capabilities":{"tools":{}},"protocolVersion":"2024-11-05","serverInfo":{"name":"kubernetes-mcp","version":"0.1.0"}}}
+
+event:message
+data:{"id":2,"jsonrpc":"2.0","result":{"tools":[{"description":"Get a list of all Kubernetes namespaces","inputSchema":{"properties":{},"required":[],"type":"object"},"name":"get_namespaces"},{"description":"Get all resources of a specific type in a namespace","inputSchema":{"properties":{"namespace":{"description":"The namespace to query in. use 'all' for all namespaces","type":"string"},"resource_type":{"description":"The type of Kubernetes resource","type":"string"}},"required":["resource_type","namespace"],"type":"object"},"name":"get_resources"},{"description":"Get logs for a specific resource","inputSchema":{"properties":{"namespace":{"description":"The namespace to query in","type":"string"},"resource_name":{"description":"The name of the Kubernetes resource","type":"string"},"resource_type":{"description":"The type of Kubernetes resource","type":"string"}},"required":["resource_type","resource_name","namespace"],"type":"object"},"name":"get_logs"}]}}
+

@@ -64,6 +64,11 @@ test:
 watch-tests +args="Main.main":
     ghcid --command="cabal repl {{ app_name }}-test" --test="{{ args }}"
 
+# Integration testing for the MCP protocol
+[group: 'test']
+test-mcp:
+    ./test-mcp-integration.sh
+
 # --- check & format ---
 
 # FORCE: Format code and apply HLint refactors automatically
