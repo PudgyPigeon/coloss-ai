@@ -7,6 +7,10 @@
     flake-utils.url = "github:numtide/flake-utils";
     just.url = "github:casey/just";
     ghciwatch.url = "github:MercuryTechnologies/ghciwatch";
+    mcp-server-src = {
+      url = "github:drshade/haskell-mcp-server";
+      flake = false;
+    };
   };
 
   # The artifacts produces by nix commands
@@ -16,6 +20,7 @@
     , flake-utils
     , just
     , ghciwatch
+    , mcp-server-src
     ,
     }:
     # Allow artifacts to work on different architectures
@@ -23,7 +28,13 @@
       system:
       let
         pkgs = import nixpkgs { inherit system; };
-        hpkgs = pkgs.haskell.packages.ghc912;
+
+        # Override the Haskell package set with latest mcp-server from GitHub
+        hpkgs = pkgs.haskell.packages.ghc912.override {
+          overrides = self: super: {
+            mcp-server = self.callCabal2nix "mcp-server" mcp-server-src { };
+          };
+        };
 
         # Define the Haskell package
         # callCabal2nix looks at your .cabal file to determine dependencies
@@ -43,6 +54,31 @@
 
         # Define the default package (nix build)
         packages.default = haskellPkgFinal;
+
+        # Container image (nix build .#container)
+        # Produces a .tar.gz loadable via: docker load < result OR minikube image load result
+        packages.container = pkgs.dockerTools.buildLayeredImage {
+          name = "kubernetes-mcp";
+          tag = "latest";
+
+          contents = [
+            haskellPkgFinal       # The Haskell binary
+            pkgs.kubectl          # Required at runtime for subprocess calls
+            pkgs.cacert           # TLS certs for kubectl -> API server
+            pkgs.coreutils        # Basic utilities (date, etc.)
+          ];
+
+          config = {
+            Cmd = [ "${haskellPkgFinal}/bin/kubernetes-mcp" ];
+            ExposedPorts = {
+              "30090/tcp" = {};   # MCP transport port
+              "30091/tcp" = {};   # Health probe port
+            };
+            Env = [
+              "SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt"
+            ];
+          };
+        };
 
         # Define the default app (nix run)
         apps.default = {
@@ -65,6 +101,9 @@
             hpkgs.hlint
             hpkgs.apply-refact
             hpkgs.eventlog2html
+
+            # Kubernetes CLI (required at runtime for kubectl subprocess calls)
+            pkgs.kubectl
 
             # Profiling & Performance
             hpkgs.eventlog2html # Visualizing K8S MCP performance

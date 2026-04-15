@@ -1,0 +1,56 @@
+# values.yaml
+image:
+  repository: kubernetes-mcp
+  tag: latest
+  pullPolicy: IfNotPresent
+
+replicaCount: 1
+fullnameOverride: "kubernetes-mcp"
+
+# MCP server config (passed as CLI args / env vars)
+config:
+  transport: "http"         # "stdio" or "http"
+  port: 30090               # MCP HTTP transport port
+  healthPort: 30091         # Health/readiness probe port
+  env: "prod"               # "dev", "staging", "prod"
+
+# Service for the MCP HTTP endpoint
+service:
+  type: ClusterIP
+  port: 30090
+  targetPort: 30090
+
+# Service for health probes (separate port)
+healthService:
+  port: 30091
+  targetPort: 30091
+
+# RBAC — the service account needs read access to K8s resources
+rbac:
+  create: true
+  # ClusterRole rules for kubectl commands
+  rules:
+    - apiGroups: [""]
+      resources: ["pods", "pods/log", "services", "namespaces", "events"]
+      verbs: ["get", "list"]
+    - apiGroups: ["apps"]
+      resources: ["deployments"]
+      verbs: ["get", "list"]
+
+serviceAccount:
+  create: true
+  name: ""  # defaults to fullname
+
+# Horizontal Pod Autoscaler
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 70
+
+resources:
+  limits:
+    memory: "256Mi"
+  requests:
+    cpu: "100m"
+    memory: "128Mi"
