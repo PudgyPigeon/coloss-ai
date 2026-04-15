@@ -23,6 +23,7 @@ library
         Config
     build-depends:    
         base >=4.21.0.0,
+        aeson,
         mcp-server,
         typed-process,
         aeson,

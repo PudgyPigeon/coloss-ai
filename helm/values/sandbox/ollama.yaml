@@ -14,7 +14,7 @@ models:
     - "llama3:8b"
     - "gemma4:e4b"
     # - "gemma4:26b"
-    - "granite-code:20b"
+    # - "granite-code:20b"
     # - "x/flux2-klein:9b"
 
 # Networking
