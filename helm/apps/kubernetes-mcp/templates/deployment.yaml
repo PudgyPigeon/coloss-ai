@@ -1,0 +1,64 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "kubernetes-mcp.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "kubernetes-mcp.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount | default 1 }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "kubernetes-mcp.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "kubernetes-mcp.selectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "kubernetes-mcp.serviceAccountName" . }}
+      containers:
+      - name: kubernetes-mcp
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy | default "IfNotPresent" }}
+        args:
+          - "--transport"
+          - {{ .Values.config.transport | quote }}
+          - "--port"
+          - {{ .Values.config.port | quote }}
+          - "--health-port"
+          - {{ .Values.config.healthPort | quote }}
+          - "--env"
+          - {{ .Values.config.env | quote }}
+        env:
+          - name: HOME
+            value: "/tmp"
+        ports:
+          - containerPort: {{ .Values.config.port }}
+            name: mcp
+            protocol: TCP
+          - containerPort: {{ .Values.config.healthPort }}
+            name: health
+            protocol: TCP
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: health
+          initialDelaySeconds: 5
+          periodSeconds: 15
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /status
+            port: health
+          initialDelaySeconds: 3
+          periodSeconds: 10
+          failureThreshold: 3
+        resources:
+          {{- toYaml .Values.resources | nindent 10 }}
+        securityContext:
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 1000
+          allowPrivilegeEscalation: false

@@ -125,6 +125,22 @@
         "type": "github"
       }
     },
+    "mcp-server-src": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1770788343,
+        "narHash": "sha256-H+VUKY0B68oiWPqicnRXXd4cwO0ESMeTpMdfTg3cev4=",
+        "owner": "drshade",
+        "repo": "haskell-mcp-server",
+        "rev": "7991756933ae5e39ad480b0be830beb855cb8768",
+        "type": "github"
+      },
+      "original": {
+        "owner": "drshade",
+        "repo": "haskell-mcp-server",
+        "type": "github"
+      }
+    },
     "nixpkgs": {
       "locked": {
         "lastModified": 1757487488,
@@ -178,6 +194,7 @@
         "flake-utils": "flake-utils",
         "ghciwatch": "ghciwatch",
         "just": "just",
+        "mcp-server-src": "mcp-server-src",
         "nixpkgs": "nixpkgs_3"
       }
     },

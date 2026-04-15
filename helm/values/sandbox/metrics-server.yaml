@@ -1,0 +1,13 @@
+# Values passed through to the upstream metrics-server chart
+# Docs: https://github.com/kubernetes-sigs/metrics-server/tree/master/charts/metrics-server
+metrics-server:
+  args:
+    - "--kubelet-insecure-tls"
+    - "--kubelet-preferred-address-types=InternalIP,ExternalIP,Hostname"
+
+  resources:
+    limits:
+      memory: "256Mi"
+    requests:
+      cpu: "100m"
+      memory: "128Mi"

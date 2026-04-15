@@ -1,10 +1,11 @@
 module Config (
     Config (..),
     Port (..),
+    Env (..),
+    Transport (..),
     get,
 ) where
 
--- import Control.Applicative ((<|>))
 import Data.Char (toLower)
 import Data.Maybe (fromMaybe)
 import System.Environment (getArgs, lookupEnv)
@@ -24,18 +25,25 @@ mkPort n
 -- | Sum type\Enum - The choices we allow in our logic
 data Env = Dev | Staging | Prod deriving (Show, Eq)
 
--- | The type-safe wrapper for the actual string value
-newtype EnvName = EnvName String deriving (Show, Eq)
-
 mkEnv :: String -> Maybe Env
 mkEnv "dev" = Just Dev
 mkEnv "staging" = Just Staging
 mkEnv "prod" = Just Prod
 mkEnv _ = Nothing
 
+-- | Transport mode for the MCP server
+data Transport = Stdio | Http deriving (Show, Eq)
+
+mkTransport :: String -> Maybe Transport
+mkTransport "stdio" = Just Stdio
+mkTransport "http" = Just Http
+mkTransport _ = Nothing
+
 data Config = Config
     { port :: Port
+    , healthPort :: Port
     , env :: Env
+    , transport :: Transport
     }
     deriving (Show, Eq)
 
@@ -45,8 +53,10 @@ data Config = Config
 defaultConfig :: Config
 defaultConfig =
     Config
-        { port = Port 10_000
+        { port = Port 30090
+        , healthPort = Port 30091
         , env = Dev
+        , transport = Stdio
         }
 
 -------------------------------------------------------------------------------
@@ -58,13 +68,17 @@ get :: IO Config
 get = do
     args <- getArgs
     envPort <- lookupEnv "PORT"
+    envHealthPort <- lookupEnv "HEALTH_PORT"
     envName <- lookupEnv "ENV"
+    envTransport <- lookupEnv "TRANSPORT"
 
     -- Build base config from Environment or Defaults
     let base =
             defaultConfig
                 { port = fromMaybe (port defaultConfig) (envPort >>= readMaybe >>= mkPort)
+                , healthPort = fromMaybe (healthPort defaultConfig) (envHealthPort >>= readMaybe >>= mkPort)
                 , env = fromMaybe (env defaultConfig) (envName >>= mkEnv . map toLower)
+                , transport = fromMaybe (transport defaultConfig) (envTransport >>= mkTransport . map toLower)
                 }
 
     -- Apply CLI overrides
@@ -80,5 +94,9 @@ parseArgs ("--port" : v : rest) =
     parseArgs rest . \cfg -> cfg{port = fromMaybe (port cfg) (readMaybe v >>= mkPort)}
 parseArgs ("--env" : v : rest) =
     parseArgs rest . \cfg -> cfg{env = fromMaybe (env cfg) (mkEnv (map toLower v))}
+parseArgs ("--transport" : v : rest) =
+    parseArgs rest . \cfg -> cfg{transport = fromMaybe (transport cfg) (mkTransport (map toLower v))}
+parseArgs ("--health-port" : v : rest) =
+    parseArgs rest . \cfg -> cfg{healthPort = fromMaybe (healthPort cfg) (readMaybe v >>= mkPort)}
 parseArgs (_ : rest) = parseArgs rest
 parseArgs [] = id
