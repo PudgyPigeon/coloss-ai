@@ -2,28 +2,30 @@
 image:
   repository: kubernetes-mcp
   tag: latest
-  pullPolicy: IfNotPresent
+  pullPolicy: Always #IfNotPresent
 
 replicaCount: 1
 fullnameOverride: "kubernetes-mcp"
 
+# http://kubernetes-mcp.kubernetes-mcp.svc.cluster.local:8080/mcp
+
 # MCP server config (passed as CLI args / env vars)
 config:
   transport: "http"         # "stdio" or "http"
-  port: 30090               # MCP HTTP transport port
-  healthPort: 30091         # Health/readiness probe port
-  env: "prod"               # "dev", "staging", "prod"
+  port: 8080               # MCP HTTP transport port
+  healthPort: 8081         # Health/readiness probe port
+  env: "dev"               # "dev", "staging", "prod"
 
 # Service for the MCP HTTP endpoint
 service:
   type: ClusterIP
-  port: 30090
-  targetPort: 30090
+  port: 8080        
+  targetPort: 8080 
 
 # Service for health probes (separate port)
 healthService:
-  port: 30091
-  targetPort: 30091
+  port: 8081      
+  targetPort: 8081 
 
 # RBAC — the service account needs read access to K8s resources
 rbac:

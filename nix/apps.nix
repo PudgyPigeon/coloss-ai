@@ -1,28 +1,26 @@
+# nix/apps.nix
 { pkgs }:
 let
-  # Import the CI apps defined in ci.nix
-  ci = import ./ci.nix { inherit pkgs; };
+  ciData = import ./ci.nix { inherit pkgs; };
 
-  # Local utility apps for sandbox development
+  # ciData looks like { apps = { sync-sandbox = ... }; rendered = ...; }
+  # We want just the apps part.
+  ciApps = ciData.apps;
+
   utils = {
     "cluster-info" = {
       type = "app";
-      program =
-        (pkgs.writeShellScriptBin "cluster-info" ''
-          echo "☸️  Kubernetes Cluster Info:"
-          ${pkgs.kubectl}/bin/kubectl cluster-info
-          echo ""
-          echo "📦 Local Kind Clusters:"
-          ${pkgs.kind}/bin/kind get clusters
-        '').outPath
-        + "/bin/cluster-info";
+      program = "${pkgs.writeShellScriptBin "cluster-info" ''
+        ${pkgs.kubectl}/bin/kubectl cluster-info
+      ''}/bin/cluster-info";
     };
   };
 in
 {
-  # Standardized attribute names for Flake consumption
-  inherit ci utils;
+  # 1. This provides the nested 'ci' key back to shell.nix
+  # We wrap it in an 'apps' attribute to match what shell.nix expects
+  ci = { inherit (ciData) apps; };
 
-  # A convenience attribute containing everything
-  all = ci // utils;
+  # 2. This is what the Root Flake uses (MUST be a flat list of apps)
+  all = ciApps // utils;
 }

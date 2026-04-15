@@ -2,7 +2,7 @@
 
 # Justfile variables
 app_name       := "kubernetes-mcp"
-app_flags      := "--port 30090 --env dev"
+app_flags      := "--port 30090 --health-port 30091 --env dev --transport http"
 log            := "warn"
 
 export JUST_LOG := log
@@ -37,7 +37,7 @@ watch:
 
 # --- build ---
 
-# Build the Haskell project
+# Build the Haskell project (Local incremental dev)
 [group: 'build']
 build:
     cabal build
@@ -84,23 +84,29 @@ ci:
 
 # --- profile ---
 
-# Performance analysis: Generates an interactive HTML dashboard
+# Performance analysis: Generates heap profiles and an interactive dashboard
 [group: 'profile']
 profile:
     cabal build --enable-profiling
-    # Run with EventLog enabled (+RTS -l)
-    cabal run {{ app_name }} -- +RTS -l -RTS {{ app_flags }}
+    # -hc: Profile heap by cost-centre (Who is allocating?)
+    # -l-au: Full eventlog for eventlog2html
+    cabal run {{ app_name }} -- +RTS -hc -l-au -RTS {{ app_flags }}
     eventlog2html {{ app_name }}.eventlog
     @echo "Report generated: {{ app_name }}.eventlog.html"
 
 # --- nix ---
 
-# Build the final production artifact via Flake
+# Build the final production binary artifact via Flake
 [group: 'nix']
 nix-build:
     nix build .#default
 
-# Run the Nix-built production app
+# Build and load the OCI image into the local Docker daemon via nix2container
+[group: 'nix']
+build-image:
+    nix run .#image.copyToDockerDaemon
+
+# Run the Nix-built production app (locally via nix run)
 [group: 'nix']
 nix-run *args:
     nix run .#default -- {{ args }}
@@ -110,7 +116,7 @@ nix-run *args:
 # Clean up all build artifacts
 [group: 'misc']
 clean:
-    rm -rf dist-newstyle result *.eventlog *.html
+    rm -rf dist-newstyle result *.eventlog *.html *.hp
     cabal clean
 
 # Clean up Nix store (Garbage Collection)

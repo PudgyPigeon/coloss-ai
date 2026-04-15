@@ -5,6 +5,7 @@
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
+    nix2container.url = "github:nlewo/nix2container";
     just.url = "github:casey/just";
     ghciwatch.url = "github:MercuryTechnologies/ghciwatch";
     mcp-server-src = {
@@ -18,16 +19,19 @@
     { self
     , nixpkgs
     , flake-utils
+    , nix2container
     , just
     , ghciwatch
     , mcp-server-src
     ,
-    }:
+    } @ inputs:
     # Allow artifacts to work on different architectures
     flake-utils.lib.eachDefaultSystem (
       system:
       let
         pkgs = import nixpkgs { inherit system; };
+
+        n2c = nix2container.packages.${system}.nix2container;
 
         # Override the Haskell package set with latest mcp-server from GitHub
         hpkgs = pkgs.haskell.packages.ghc912.override {
@@ -47,37 +51,42 @@
             pkgs.pkg-config
           ];
         });
+
+        # 3. Define the Container Image
+        containerImage = n2c.buildImage {
+          name = "kubernetes-mcp";
+          tag = "latest";
+
+          # Use a layer for static/heavy dependencies to speed up rebuilds
+          layers = [
+            (n2c.buildLayer {
+              deps = [ pkgs.kubectl pkgs.zlib pkgs.cacert ];
+            })
+          ];
+
+          config = {
+            # Use Entrypoint so it's "locked" as the binary
+            Entrypoint = [ "${pkgs.haskell.lib.justStaticExecutables haskellPkgFinal}/bin/kubernetes-mcp" ];
+            # Optional: You can put default Cmd here, but Helm args will override them
+            Cmd = [];
+            WorkingDir = "/tmp";
+            User = "1000";
+            Env = [
+              "PATH=${pkgs.kubectl}/bin"
+              "SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt"
+            ];
+          };
+        };
+
       in
       {
         # Formatting
         formatter = pkgs.nixpkgs-fmt; #pkgs.alejandra;
 
         # Define the default package (nix build)
-        packages.default = haskellPkgFinal;
-
-        # Container image (nix build .#container)
-        # Produces a .tar.gz loadable via: docker load < result OR minikube image load result
-        packages.container = pkgs.dockerTools.buildLayeredImage {
-          name = "kubernetes-mcp";
-          tag = "latest";
-
-          contents = [
-            haskellPkgFinal       # The Haskell binary
-            pkgs.kubectl          # Required at runtime for subprocess calls
-            pkgs.cacert           # TLS certs for kubectl -> API server
-            pkgs.coreutils        # Basic utilities (date, etc.)
-          ];
-
-          config = {
-            Cmd = [ "${haskellPkgFinal}/bin/kubernetes-mcp" ];
-            ExposedPorts = {
-              "30090/tcp" = {};   # MCP transport port
-              "30091/tcp" = {};   # Health probe port
-            };
-            Env = [
-              "SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt"
-            ];
-          };
+        packages = {
+          default = haskellPkgFinal;
+          image = containerImage;
         };
 
         # Define the default app (nix run)

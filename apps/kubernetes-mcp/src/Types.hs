@@ -7,21 +7,26 @@ import Data.Text (Text)
 
 -------------------------------------------------------------------------------
 -- MCP Tool ADT
--- Each constructor becomes a discoverable MCP tool via TH derivation.
--- Constructor names are auto-converted to snake_case by mcp-server.
 -------------------------------------------------------------------------------
 
--- | Kubernetes operations exposed as MCP tools.
--- Field names become the JSON Schema properties in the tool's inputSchema.
 data K8sTool
+    -- Tier 1: Discovery (Lists)
     = ListPods {namespace :: Text}
-    | GetPod {namespace :: Text, name :: Text}
-    | ListServices {namespace :: Text}
-    | GetService {namespace :: Text, name :: Text}
     | ListDeployments {namespace :: Text}
-    | GetDeployment {namespace :: Text, name :: Text}
+    | ListServices {namespace :: Text}
+    | ListPVCs {namespace :: Text}
     | ListNamespaces
-    | GetPodLogs {namespace :: Text, name :: Text, tailLines :: Int}
-    | DescribePod {namespace :: Text, name :: Text}
+    | ListNodes
+
+    -- Tier 2: Inspection (Gets)
+    | GetPod {namespace :: Text, name :: Text}
+    | GetDeployment {namespace :: Text, name :: Text}
+    | GetService {namespace :: Text, name :: Text}
+    | GetPVC {namespace :: Text, name :: Text}
+
+    -- Tier 3: Deep Debugging
+    -- 'kind' can be "pod", "deployment", "service", "node", "pvc", etc.
+    | GetLogs {kind :: Text, namespace :: Text, name :: Text, tailLines :: Int}
+    | DescribeResource {kind :: Text, namespace :: Text, name :: Text}
     | GetEvents {namespace :: Text}
     deriving (Show, Eq)

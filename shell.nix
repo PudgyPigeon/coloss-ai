@@ -154,8 +154,8 @@ let
     minikube stop || true 
     docker rm -f ${gitServiceName} || true
   '';
-      # minikube delete || true
-          # rm -f ${kubeconfig}
+  # minikube delete || true
+  # rm -f ${kubeconfig}
 
 
 
@@ -200,6 +200,7 @@ pkgs.mkShell {
     pkgs.argocd
     pkgs.git
     pkgs.curl
+    pkgs.just
     up
     gitea-up
     minikube-up
