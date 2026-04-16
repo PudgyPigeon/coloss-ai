@@ -1,7 +1,7 @@
 #!/usr/bin/env -S just --justfile
 
 # --- Variables ---
-# system := `nix eval --raw --expr 'builtins.currentSystem'`
+system := `nix eval --raw --impure --expr 'builtins.currentSystem'`
 
 # --- General ---
 
@@ -27,14 +27,14 @@ fmt:
 # --- Kubernetes MCP ---
 
 # Load the image into the local Docker daemon
-[group: 'k8s-mcp']
-k8s-mcp-load:
+[group: 'kubernetes-mcp']
+kubernetes-mcp-load:
     nix run .#kubernetes-mcp-load
     minikube image load kubernetes-mcp:latest
 
 # Run the MCP server directly via Nix
-[group: 'k8s-mcp']
-k8s-mcp-run:
+[group: 'kubernetes-mcp']
+kubernetes-mcp-run:
     nix run .#kubernetes-mcp
 
 # --- Rig Brain ---
@@ -62,12 +62,12 @@ check:
 gc:
     nix-collect-garbage -d
 
-# Push the image directly to a remote registry using skopeo
-[group: 'registry']
-k8s-mcp-push registry="ghcr.io/my-user":
-    skopeo copy \
-      nix:$(nix build .#kubernetes-mcp-image --print-out-paths) \
-      docker://{{registry}}/kubernetes-mcp:latest
+# # Push the image directly to a remote registry using skopeo
+# [group: 'registry']
+# kubernetes-mcp-push registry="ghcr.io/my-user":
+#     skopeo copy \
+#       nix:$(nix build .#kubernetes-mcp-image --print-out-paths) \
+#       docker://{{registry}}/kubernetes-mcp:latest
 
 [group: 'help']
 list-all:
@@ -78,11 +78,49 @@ list-all:
     @echo "\n=== Rig Brain Commands ==="
     @just --justfile apps/rig-brain/justfile --list
 
+# List all low-level Nix apps available in this flake
+[group: 'help']
+nix-apps:
+    @echo "--- Available Nix Apps (nix run .#<name>) ---"
+    @nix eval --json .#apps.{{system}} --apply builtins.attrNames | jq -r 'sort | .[]' | sed 's/^/  - /'
+
+
+##############################################
+# --- Git Subtree Management ---
+##############################################
+# Path to the sub-projects
+haskell_kubernetes_mcp_path := "apps/kubernetes-mcp"
+rust_rig_brain_path := "apps/rig-brain"
+
+# Replace these with your actual public repository URLs
+haskell_kubernetes_mcp_remote := "https://github.com/PudgyPigeon/haskell-kubernetes-mcp.git"
+rust_rig_brain_remote := "https://github.com/your-username/rig-brain.git"
+
+# Push the Kubernetes MCP code to its own public repo
+[group: 'git']
+git-haskell-kubernetes-mcp-push:
+    git subtree push --prefix={{ haskell_kubernetes_mcp_path }} {{ haskell_kubernetes_mcp_remote }} main
+
+# Pull updates from the public Kubernetes MCP repo back into the monorepo
+[group: 'git']
+git-haskell-kubernetes-mcp-pull:
+    git subtree pull --prefix={{ haskell_kubernetes_mcp_path }} {{ haskell_kubernetes_mcp_remote }} main --squash
+
+# Push the Rig Brain code to its own public repo
+[group: 'git']
+git-rust-rig-brain-push:
+    git subtree push --prefix={{ rust_rig_brain_path }} {{ rust_rig_brain_remote }} main
+
+# Pull updates from the public Rig Brain repo back into the monorepo
+[group: 'git']
+git-rust-rig-brain-pull:
+    git subtree pull --prefix={{ rust_rig_brain_path }} {{ rust_rig_brain_remote }} main --squash
+
 # --- [ Sub-Project Dispatchers ] ---
 
 # Dispatch any command to the Kubernetes MCP justfile
 [group: 'subdir']
-k8s-mcp +args:
+kubernetes-mcp +args:
     @just --justfile apps/kubernetes-mcp/justfile --working-directory apps/kubernetes-mcp {{args}}
 
 # Dispatch any command to the Rig Brain justfile

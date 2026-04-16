@@ -93,11 +93,11 @@
         "systems": "systems_2"
       },
       "locked": {
-        "lastModified": 1775826820,
-        "narHash": "sha256-C5SKKLD4MXgz/+QHxFcshSzWl1Rur0Sn39rSZ5ZNGnw=",
+        "lastModified": 1776342965,
+        "narHash": "sha256-EI65H4dC/2Uri38P7yS6qA+6M9c+OfpYwST6DFsT+aQ=",
         "owner": "MercuryTechnologies",
         "repo": "ghciwatch",
-        "rev": "a9c51af4daea0b4f23687b10e6b4edd9ce2c7309",
+        "rev": "97f3797049b39002cb290f5c0ab109b79016393f",
         "type": "github"
       },
       "original": {
@@ -112,11 +112,11 @@
         "nixpkgs": "nixpkgs_2"
       },
       "locked": {
-        "lastModified": 1775938654,
-        "narHash": "sha256-v288BNPG1lXqHBgofo+Xnc+ZEPsJEWgy4zuMGes5ZEc=",
+        "lastModified": 1776318994,
+        "narHash": "sha256-xrOqT5nUhcBcm8jPdIvnWIisxoqNx7lMe7jbyzSK0pU=",
         "owner": "casey",
         "repo": "just",
-        "rev": "c8822fec4852b229c56da6ea4603e714bc6d768f",
+        "rev": "ad2678ffff0fb74b7ea41b5fc07a7c46b3114ad1",
         "type": "github"
       },
       "original": {
@@ -208,11 +208,11 @@
     },
     "nixpkgs_4": {
       "locked": {
-        "lastModified": 1775710090,
-        "narHash": "sha256-ar3rofg+awPB8QXDaFJhJ2jJhu+KqN/PRCXeyuXR76E=",
+        "lastModified": 1776169885,
+        "narHash": "sha256-l/iNYDZ4bGOAFQY2q8y5OAfBBtrDAaPuRQqWaFHVRXM=",
         "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "4c1018dae018162ec878d42fec712642d214fdfa",
+        "rev": "4bd9165a9165d7b5e33ae57f3eecbcb28fb231c9",
         "type": "github"
       },
       "original": {

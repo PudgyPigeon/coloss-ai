@@ -115,6 +115,10 @@
             type = "app";
             program = "${rigBrainPkg}/bin/rig-brain";
           };
+          load-image = {
+            type = "app";
+            program = "${containerImage.copyToDockerDaemon}/bin/copy-to-docker-daemon";
+          };
         };
 
         # Define nix develop shell
@@ -129,14 +133,14 @@
 
             # Rust Development & Watchers
             pkgs.cargo-watch
-            pkgs.cargo-edit      # Adds `cargo add`, `cargo rm` commands
-            pkgs.cargo-audit     
-            pkgs.cargo-deny     
-            
+            pkgs.cargo-edit # Adds `cargo add`, `cargo rm` commands
+            pkgs.cargo-audit
+            pkgs.cargo-deny
+
             # Profiling & Performance (Rust equivalents to eventlog2html)
-            pkgs.samply          
+            pkgs.samply
           ];
-          
+
           shellHook = ''
             echo -e "\n\033[1;36m┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓\033[0m"
             echo -e "\033[1;36m┃ 🤖 Rig Agentic Brain: \033[1;32mDEVELOPMENT SHELL\033[1;36m               ┃\033[0m"

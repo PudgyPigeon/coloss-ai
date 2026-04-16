@@ -68,7 +68,7 @@
             # Use Entrypoint so it's "locked" as the binary
             Entrypoint = [ "${pkgs.haskell.lib.justStaticExecutables haskellPkgFinal}/bin/kubernetes-mcp" ];
             # Optional: You can put default Cmd here, but Helm args will override them
-            Cmd = [];
+            Cmd = [ ];
             WorkingDir = "/tmp";
             User = "1000";
             Env = [
@@ -90,9 +90,15 @@
         };
 
         # Define the default app (nix run)
-        apps.default = {
-          type = "app";
-          program = "${haskellPkgFinal}/bin/kubernetes-mcp";
+        apps = {
+          default = {
+            type = "app";
+            program = "${haskellPkgFinal}/bin/kubernetes-mcp";
+          };
+          load-image = {
+            type = "app";
+            program = "${containerImage.copyToDockerDaemon}/bin/copy-to-docker-daemon";
+          };
         };
 
         # Define nix develop shell

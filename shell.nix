@@ -200,6 +200,7 @@ pkgs.mkShell {
     pkgs.argocd
     pkgs.git
     pkgs.curl
+    pkgs.jq
     pkgs.just
     up
     gitea-up

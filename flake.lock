@@ -133,11 +133,11 @@
         "systems": "systems"
       },
       "locked": {
-        "lastModified": 1775826820,
-        "narHash": "sha256-C5SKKLD4MXgz/+QHxFcshSzWl1Rur0Sn39rSZ5ZNGnw=",
+        "lastModified": 1776296852,
+        "narHash": "sha256-h5bHC8Xgmw1qMhnNJ+2kWDVqPpp7a33+5STaL1qcZH4=",
         "owner": "MercuryTechnologies",
         "repo": "ghciwatch",
-        "rev": "a9c51af4daea0b4f23687b10e6b4edd9ce2c7309",
+        "rev": "0a85d28ad7901a01b73e93c3989bc62cbc44909c",
         "type": "github"
       },
       "original": {

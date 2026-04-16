@@ -103,8 +103,8 @@ nix-build:
 
 # Build and load the OCI image into the local Docker daemon via nix2container
 [group: 'nix']
-build-image:
-    nix run .#image.copyToDockerDaemon
+load-image:
+    nix run .#load-image
 
 # Run the Nix-built production app (locally via nix run)
 [group: 'nix']
