@@ -1,6 +1,8 @@
 #!/usr/bin/env -S just --justfile
 
 # Justfile variables
+system := `nix eval --raw --impure --expr 'builtins.currentSystem'`
+
 app_name       := "kubernetes-mcp"
 app_flags      := "--port 30090 --health-port 30091 --env dev --transport http"
 log            := "warn"

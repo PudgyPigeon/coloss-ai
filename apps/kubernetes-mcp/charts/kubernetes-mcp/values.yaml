@@ -1,0 +1,32 @@
+# values.yaml
+image:
+  repository: kubernetes-mcp
+  tag: latest
+  pullPolicy: IfNotPresent
+
+replicaCount: 1
+
+# MCP server config
+config:
+  transport: "http"
+  port: 30090
+  healthPort: 30091
+  env: "prod"
+
+# RBAC permissions for the MCP server
+rbac:
+  create: true
+  rules:
+    - apiGroups: [""]
+      resources: ["pods", "pods/log", "services", "namespaces", "events"]
+      verbs: ["get", "list"]
+    - apiGroups: ["apps"]
+      resources: ["deployments"]
+      verbs: ["get", "list"]
+
+resources:
+  limits:
+    memory: "256Mi"
+  requests:
+    cpu: "100m"
+    memory: "128Mi"

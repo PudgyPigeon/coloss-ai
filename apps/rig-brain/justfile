@@ -1,5 +1,7 @@
 #!/usr/bin/env -S just --justfile
 
+system := `nix eval --raw --impure --expr 'builtins.currentSystem'`
+
 # Justfile for Rig Brain (Rust)
 app_name := "rig-brain"
 
@@ -104,3 +106,9 @@ clean:
 [group: 'misc']
 gc:
     nix-collect-garbage -d
+
+# List all low-level Nix apps available in this flake
+[group: 'help']
+nix-apps:
+    @echo "--- Available Nix Apps (nix run .#<name>) ---"
+    @nix eval --json .#apps.{{system}} --apply builtins.attrNames | jq -r 'sort | .[]' | sed 's/^/  - /'

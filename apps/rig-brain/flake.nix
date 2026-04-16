@@ -139,17 +139,20 @@
 
             # Profiling & Performance (Rust equivalents to eventlog2html)
             pkgs.samply
+
+            # Others
+            pkgs.jq
           ];
 
           shellHook = ''
+            # Ensure tracing is off for the rest of the shell
+            set +x 2>/dev/null || true
+
             echo -e "\n\033[1;36m┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓\033[0m"
             echo -e "\033[1;36m┃ 🤖 Rig Agentic Brain: \033[1;32mDEVELOPMENT SHELL\033[1;36m               ┃\033[0m"
-            echo -e "\033[1;36m┃ Rust: $(rustc --version | cut -d' ' -f2)                                          ┃\033[0m"
-            echo -e "\033[1;36m┃ Cargo: $(cargo --version | cut -d' ' -f2)                                         ┃\033[0m"
+            echo -e "\033[1;36m┃ Rust: $(rustc --version 2>/dev/null | cut -d' ' -f2)                                          ┃\033[0m"
+            echo -e "\033[1;36m┃ Cargo: $(cargo --version 2>/dev/null | cut -d' ' -f2)                                         ┃\033[0m"
             echo -e "\033[1;36m┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛\033[0m\n"
-            
-            # Setup environment
-            export OPENAI_API_KEY="your-key-here"
             
             echo -e "\033[1;33mTip:\033[0m Run '\033[1;32mcargo run\033[0m' to start the orchestrator."
             echo -e "\033[1;33mTip:\033[0m Use '\033[1;32mnix run .#load-image\033[0m' to build/load the container.\n"

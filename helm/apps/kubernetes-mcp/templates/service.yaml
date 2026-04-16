@@ -6,15 +6,15 @@ metadata:
   labels:
     {{- include "kubernetes-mcp.labels" . | nindent 4 }}
 spec:
-  type: {{ .Values.service.type }}
-  ports:
-    - port: {{ .Values.service.port }}
-      targetPort: {{ .Values.service.targetPort }}
-      protocol: TCP
-      name: mcp
-    - port: {{ .Values.healthService.port }}
-      targetPort: {{ .Values.healthService.targetPort }}
-      protocol: TCP
-      name: health
+  type: {{ .Values.service.type | default "ClusterIP" }}
   selector:
     {{- include "kubernetes-mcp.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: mcp
+      port: {{ .Values.service.port }}
+      targetPort: {{ .Values.service.targetPort }}
+      protocol: TCP
+    - name: health
+      port: {{ .Values.healthService.port }}
+      targetPort: {{ .Values.healthService.targetPort }}
+      protocol: TCP
