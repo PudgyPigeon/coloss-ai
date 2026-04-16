@@ -23,7 +23,7 @@
     , just
     , ghciwatch
     , mcp-server-src
-    ,
+    , ...
     } @ inputs:
     # Allow artifacts to work on different architectures
     flake-utils.lib.eachDefaultSystem (
@@ -44,7 +44,7 @@
         # callCabal2nix looks at your .cabal file to determine dependencies
         haskellPkg = hpkgs.callCabal2nix "kubernetes-mcp" ./. { };
 
-        # 2. Add system-level modifiers (like pkg-config or zlib)
+        # Add system-level modifiers (like pkg-config or zlib)
         haskellPkgFinal = pkgs.haskell.lib.overrideCabal haskellPkg (drv: {
           executableSystemDepends = [
             pkgs.zlib
@@ -52,7 +52,7 @@
           ];
         });
 
-        # 3. Define the Container Image
+        # Define the Container Image
         containerImage = n2c.buildImage {
           name = "kubernetes-mcp";
           tag = "latest";
@@ -68,7 +68,7 @@
             # Use Entrypoint so it's "locked" as the binary
             Entrypoint = [ "${pkgs.haskell.lib.justStaticExecutables haskellPkgFinal}/bin/kubernetes-mcp" ];
             # Optional: You can put default Cmd here, but Helm args will override them
-            Cmd = [];
+            Cmd = [ ];
             WorkingDir = "/tmp";
             User = "1000";
             Env = [
@@ -90,9 +90,15 @@
         };
 
         # Define the default app (nix run)
-        apps.default = {
-          type = "app";
-          program = "${haskellPkgFinal}/bin/kubernetes-mcp";
+        apps = {
+          default = {
+            type = "app";
+            program = "${haskellPkgFinal}/bin/kubernetes-mcp";
+          };
+          load-image = {
+            type = "app";
+            program = "${containerImage.copyToDockerDaemon}/bin/copy-to-docker-daemon";
+          };
         };
 
         # Define nix develop shell

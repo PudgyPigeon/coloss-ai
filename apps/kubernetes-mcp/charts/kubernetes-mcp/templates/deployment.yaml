@@ -1,27 +1,25 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "kubernetes-mcp.fullname" . }}
+  name: {{ .Chart.Name }}
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "kubernetes-mcp.labels" . | nindent 4 }}
+    app: {{ .Chart.Name }}
 spec:
-  {{- if not .Values.autoscaling.enabled }}
-  replicas: {{ .Values.replicaCount | default 1 }}
-  {{- end }}
+  replicas: {{ .Values.replicaCount }}
   selector:
     matchLabels:
-      {{- include "kubernetes-mcp.selectorLabels" . | nindent 6 }}
+      app: {{ .Chart.Name }}
   template:
     metadata:
       labels:
-        {{- include "kubernetes-mcp.selectorLabels" . | nindent 8 }}
+        app: {{ .Chart.Name }}
     spec:
-      serviceAccountName: {{ include "kubernetes-mcp.serviceAccountName" . }}
+      serviceAccountName: {{ .Chart.Name }}
       containers:
-        - name: {{ include "kubernetes-mcp.name" . }}
+        - name: {{ .Chart.Name }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
-          imagePullPolicy: {{ .Values.image.pullPolicy | default "IfNotPresent" }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
           args:
             - "--transport"
             - {{ .Values.config.transport | quote }}

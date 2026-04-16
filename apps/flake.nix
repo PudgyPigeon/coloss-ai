@@ -15,6 +15,14 @@
       inputs.just.follows = "just";
       inputs.nix2container.follows = "nix2container";
     };
+    # Rig Agentic Brain
+    rig-brain = {
+      url = "path:./rig-brain";
+      inputs.nixpkgs.follows = "nixpkgs";
+      inputs.flake-utils.follows = "flake-utils";
+      inputs.just.follows = "just";
+      inputs.nix2container.follows = "nix2container";
+    };
   };
 
   # The '@ inputs' allows the let block to see 'inputs.kubernetes-mcp-src'
@@ -32,11 +40,14 @@
           };
           apps = {
             # Each function call creates two apps: one raw binary and one docker loading operation for image
-            "${name}" = input.apps.${system}.default;
+            "${name}" = input.apps.${system}.default // {
+              meta.description = "The binary application for ${name}";
+            };
             "${name}-load" = {
               type = "app";
               # Accessing the binary via the package is safer than relying on sub-flake app structures
               program = "${input.packages.${system}.image.copyToDockerDaemon}/bin/copy-to-docker-daemon";
+              meta.description = "Build and load the OCI image for ${name} into the local Docker daemon";
             };
           };
         };
@@ -44,6 +55,7 @@
         # Generate bundles for every microservice
         bundles = [
           (mkAppBundle "kubernetes-mcp" self.inputs.kubernetes-mcp)
+          (mkAppBundle "rig-brain" self.inputs.rig-brain)
         ];
         # When you add a second app, just add a line like this:
         # ghBundle = mkAppBundle "github-mcp" inputs.github-mcp-src;

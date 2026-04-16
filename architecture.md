@@ -1,6 +1,6 @@
 # Localhost Agent Architecture
 
-Welcome to the `localhost_agent` project. This document provides a comprehensive overview of the system's architecture, design decisions, and data flows. 
+Welcome to the localhost_agent project. This document provides a comprehensive overview of the system's architecture, design decisions, and data flows.
 
 Whether you are a new developer or an AI evaluating the repository, this guide will explain how the pieces fit together.
 
@@ -40,25 +40,33 @@ This project builds a **local-first, deterministic Kubernetes environment** desi
 |                              (Git Server / Source)                                      |
 +-----------------------------------------------------------------------------------------+
                                           | (polls for changes & reconciles)
-                                          v
+                                          v 
 +=========================================================================================+
 |                                Minikube Cluster                                         |
 |                                                                                         |
-|  +------------------------+                                                             |
-|  |       Mgmt Tier        |                                                             |
-|  |                        |                                                             |
-|  |     [ ArgoCD ] <-------+-- (GitOps Engine)                                           |
-|  +------------------------+                                                             |
-|          |         |                                                                    |
-|          v         v                                                                    |
-|  +------------------------+      +---------------------------------------------------+  |
-|  |       Infra Tier       |      |                     Apps Tier                     |  |
-|  |                        |      |                                                   |  |
-|  |  [ Ollama ]            |      |  [ Open WebUI ] <... (prompts) ...> ( Ollama )    |  |
-|  |  [ Metrics Server ]    |      |        |                                          |  |
-|  |  [ Ingress NGINX ]     |      |        v                                          |  |
-|  |                        |      |  [ K8s MCP Server ] <.. (queries) ..> ( K8s API ) |  |
-|  +------------------------+      +---------------------------------------------------+  |
+|  +-----------------------------------------------------------------------------------+  |
+|  | 1. Mgmt Tier                                                                      |  |
+|  |                                                                                   |  |
+|  |     [ ArgoCD ] <------- (GitOps Engine)            [ cert-manager ]               |  |
+|  +-----------------------------------------------------------------------------------+  |
+|            |                         |                         |                        |
+|            v                         v                         v   (syncs)              |
+|  +-------------------+     +-------------------+     +-------------------+              |
+|  | 2. Infra Tier     |     | 4. Apps Tier      |     | 3. Agents Tier    |              |
+|  |                   |     |                   |     |                   |              |
+|  | [ Gateway API ]   |     |                   |     |                   |              |
+|  |       |           |     |                   |     |                   |              |
+|  |  (HTTPRoute) -----+-----> [ OpenWebUI ]     |     |                   |              |
+|  |                   |     |        |          |     |                   |              |
+|  |                   |     |    (Prompts) -----+-----> [ Rig Brain ]     |              |
+|  |                   |     |                   |     |      |     |      |              |
+|  | [ Ollama ] <------+---- (LLM Inference) ----+------------+     |      |              |
+|  |                   |     |                   |     |            |      |              |
+|  | [ Haskell MCP ] <-+---- (Tool Execution) ---+------------------+      |              |
+|  +--------|----------+     +-------------------+     +-------------------+              |
+|           |                                                                             |
+|           v   (queries)                                                                 |
+|     ( K8s API )                                                                         |
 +=========================================================================================+
 ```
 

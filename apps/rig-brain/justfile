@@ -1,0 +1,114 @@
+#!/usr/bin/env -S just --justfile
+
+system := `nix eval --raw --impure --expr 'builtins.currentSystem'`
+
+# Justfile for Rig Brain (Rust)
+app_name := "rig-brain"
+
+# Aliases
+alias b := build
+alias r := run
+alias t := test
+alias f := fmt
+
+# Default: List recipes
+default:
+    @just --list
+
+# --- dev ---
+
+# Reload the environment (direnv)
+[group: 'dev']
+reload:
+    direnv reload
+
+# Interactive development: Run clippy and tests on every change
+[group: 'dev']
+watch:
+    cargo watch -x check -x test -x run
+
+# --- build ---
+
+# Build the project (Local incremental development)
+[group: 'build']
+build:
+    cargo build
+
+# Build with optimizations for production-like local testing
+[group: 'build']
+build-release:
+    cargo build --release
+
+# Run the project locally
+[group: 'build']
+run *args:
+    cargo run -- {{ args }}
+
+# --- test ---
+
+# Run all tests
+[group: 'test']
+test:
+    cargo test
+
+# --- check & format ---
+
+# Format code automatically using rustfmt and nixpkgs-fmt
+[group: 'check']
+fmt:
+    nix fmt .
+    cargo fmt --all
+
+# Lint code using Clippy
+[group: 'check']
+clippy:
+    cargo clippy --all-targets --all-features -- -D warnings
+
+# CI-style check (fails if messy or buggy)
+[group: 'check']
+ci:
+    cargo fmt --all -- --check
+    cargo clippy --all-targets --all-features -- -D warnings
+    cargo test
+    @just nix-build
+
+# --- nix ---
+
+# Build the final production binary via Flake
+[group: 'nix']
+nix-build:
+    nix build .#default
+
+# Build the OCI image results (native OCI format)
+[group: 'nix']
+build-image:
+    nix build .#image
+
+# Load the image into the local Docker daemon
+[group: 'nix']
+load-image:
+    nix run .#load-image
+
+# Run the Nix-built production app (locally via nix run)
+[group: 'nix']
+nix-run *args:
+    nix run .#default -- {{ args }}
+
+# --- misc ---
+
+# Clean up all build artifacts
+[group: 'misc']
+clean:
+    rm -rf target result
+    cargo clean
+
+# Clean up Nix store (Garbage Collection)
+[group: 'misc']
+gc:
+    nix-collect-garbage -d
+
+# List all low-level Nix apps available in this flake
+[group: 'help']
+nix-apps:
+    @echo "--- Available Nix Apps (nix run .#<name>) ---"
+    @nix eval --json .#apps.{{system}} --apply builtins.attrNames | jq -r 'sort | .[]' | sed 's/^/  - /'

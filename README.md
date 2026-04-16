@@ -79,6 +79,29 @@ kubectl port-forward -n open-webui svc/open-webui 9000:8080 > /dev/null 2>&1 &
 ```
 
 
+### How to disable Apps/Charts if you run out of minikube space
+Within `helm/mgmt/argocd/tempaltes/appsets.yaml`
+```
+# Example of disabling some charts by path and exclude key
+kind: ApplicationSet
+metadata:
+  name: my-cluster-apps
+spec:
+  generators:
+    - git:
+        repoURL: https://github.com/your-org/infra-repo.git
+        revision: HEAD
+        directories:
+          # 1. Include all apps in the folder
+          - path: apps/*
+          
+          # 2. Exclude heavy apps to free up Minikube resources
+          - path: apps/heavy-stack-prometheus
+            exclude: true
+          - path: apps/resource-hog-db
+            exclude: true
+```
+
 # Resources
 https://github.com/nvidia/k8s-device-plugin   < --- look into this if operator doesnt work>
 
