@@ -1,3 +1,20 @@
+# Kubernetes / Cluster
 *kubeconfig.yaml
-*direnv
-*dist-newstyle
+
+# Nix / Direnv
+.direnv/
+result
+result-*
+
+# Rust
+target/
+**/*.rs.bk
+
+# Haskell
+dist-newstyle/
+.ghc.environment.*
+
+# General Build Artifacts
+dist/
+build/
+bin/

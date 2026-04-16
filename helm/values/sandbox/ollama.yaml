@@ -31,6 +31,10 @@ env:
   extraEnv: 
     - name: OLLAMA_FLASH_ATTENTION
       value: "true"
+    - name: OLLAMA_MAX_LOADED_MODELS
+      value: "5"
+    - name: OLLAMA_NUM_PARALLEL
+      value: "4"
     - name: NVIDIA_VISIBLE_DEVICES
       value: "all"
     - name: NVIDIA_DRIVER_CAPABILITIES
