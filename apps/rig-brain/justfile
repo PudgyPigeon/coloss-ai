@@ -1,6 +1,6 @@
 #!/usr/bin/env -S just --justfile
 
-# Justfile for Rig Agent Orchestrator (Rust)
+# Justfile for Rig Brain (Rust)
 app_name := "rig-brain"
 
 # Aliases

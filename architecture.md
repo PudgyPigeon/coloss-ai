@@ -58,7 +58,7 @@ This project builds a **local-first, deterministic Kubernetes environment** desi
 |  |       |           |     |                   |     |                   |              |
 |  |  (HTTPRoute) -----+-----> [ OpenWebUI ]     |     |                   |              |
 |  |                   |     |        |          |     |                   |              |
-|  |                   |     |    (Prompts) -----+-----> [ Rig/Swarm ]     |              |
+|  |                   |     |    (Prompts) -----+-----> [ Rig Brain ]     |              |
 |  |                   |     |                   |     |      |     |      |              |
 |  | [ Ollama ] <------+---- (LLM Inference) ----+------------+     |      |              |
 |  |                   |     |                   |     |            |      |              |

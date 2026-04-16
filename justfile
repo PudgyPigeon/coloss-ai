@@ -37,6 +37,19 @@ k8s-mcp-load:
 k8s-mcp-run:
     nix run .#kubernetes-mcp
 
+# --- Rig Brain ---
+
+# Load the image into the local Docker daemon
+[group: 'rig-brain']
+rig-brain-load:
+    nix run .#rig-brain-load
+    minikube image load rig-brain:latest
+
+# Run the orchestrator directly via Nix
+[group: 'rig-brain']
+rig-brain-run:
+    nix run .#rig-brain
+
 # --- Infrastructure ---
 
 # Verify that all flakes in the repo evaluate correctly
@@ -62,11 +75,17 @@ list-all:
     @just --list
     @echo "\n=== Kubernetes MCP Commands ==="
     @just --justfile apps/kubernetes-mcp/justfile --list
+    @echo "\n=== Rig Brain Commands ==="
+    @just --justfile apps/rig-brain/justfile --list
 
-# --- [ Sub-Project Dispatcher ] ---
+# --- [ Sub-Project Dispatchers ] ---
 
 # Dispatch any command to the Kubernetes MCP justfile
-# Usage: just k8s-mcp watch OR just k8s-mcp build
 [group: 'subdir']
 k8s-mcp +args:
     @just --justfile apps/kubernetes-mcp/justfile --working-directory apps/kubernetes-mcp {{args}}
+
+# Dispatch any command to the Rig Brain justfile
+[group: 'subdir']
+rig-brain +args:
+    @just --justfile apps/rig-brain/justfile --working-directory apps/rig-brain {{args}}

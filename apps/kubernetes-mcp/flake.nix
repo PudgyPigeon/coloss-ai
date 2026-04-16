@@ -23,7 +23,7 @@
     , just
     , ghciwatch
     , mcp-server-src
-    ,
+    , ...
     } @ inputs:
     # Allow artifacts to work on different architectures
     flake-utils.lib.eachDefaultSystem (
@@ -44,7 +44,7 @@
         # callCabal2nix looks at your .cabal file to determine dependencies
         haskellPkg = hpkgs.callCabal2nix "kubernetes-mcp" ./. { };
 
-        # 2. Add system-level modifiers (like pkg-config or zlib)
+        # Add system-level modifiers (like pkg-config or zlib)
         haskellPkgFinal = pkgs.haskell.lib.overrideCabal haskellPkg (drv: {
           executableSystemDepends = [
             pkgs.zlib
@@ -52,7 +52,7 @@
           ];
         });
 
-        # 3. Define the Container Image
+        # Define the Container Image
         containerImage = n2c.buildImage {
           name = "kubernetes-mcp";
           tag = "latest";

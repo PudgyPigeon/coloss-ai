@@ -13,6 +13,7 @@ let
       program = "${pkgs.writeShellScriptBin "cluster-info" ''
         ${pkgs.kubectl}/bin/kubectl cluster-info
       ''}/bin/cluster-info";
+      meta.description = "Display Kubernetes cluster information";
     };
   };
 in

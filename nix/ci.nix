@@ -18,10 +18,12 @@ in
     sync-sandbox = {
       type = "app";
       program = "${sandboxManifests.syncScript}/bin/sync-sandbox";
+      meta.description = "Sync Helm charts to the Sandbox Gitea/ArgoCD environment";
     };
     sync-prod = {
       type = "app";
       program = "${prodManifests.syncScript}/bin/sync-prod";
+      meta.description = "Sync Helm charts to the Production Gitea/ArgoCD environment";
     };
   };
 
