@@ -11,7 +11,7 @@ config:
   transport: "http"
   port: 30090
   healthPort: 30091
-  env: "prod"
+  env: "dev"
 
 # RBAC permissions for the MCP server
 rbac:
