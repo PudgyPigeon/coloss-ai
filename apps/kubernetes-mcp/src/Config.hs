@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Config (
     Config (..),
     Port (..),
@@ -8,95 +10,109 @@ module Config (
 
 import Data.Char (toLower)
 import Data.Maybe (fromMaybe)
-import System.Environment (getArgs, lookupEnv)
+import Options.Applicative
+import System.Environment (lookupEnv)
 import Text.Read (readMaybe)
 
 -------------------------------------------------------------------------------
--- 1. Types & Validation
+-- 1. Types & Pure Validation
 -------------------------------------------------------------------------------
 newtype Port = Port Int deriving (Show, Eq)
 
--- | Pure validator for Port range
 mkPort :: Int -> Maybe Port
 mkPort n
-    | n > 0 && n < 65_536 = Just (Port n)
+    | n > 0 && n < 65536 = Just (Port n)
     | otherwise = Nothing
 
--- | Sum type\Enum - The choices we allow in our logic
 data Env = Dev | Staging | Prod deriving (Show, Eq)
 
 mkEnv :: String -> Maybe Env
-mkEnv "dev" = Just Dev
-mkEnv "staging" = Just Staging
-mkEnv "prod" = Just Prod
-mkEnv _ = Nothing
+mkEnv s = case map toLower s of
+    "dev"     -> Just Dev
+    "staging" -> Just Staging
+    "prod"    -> Just Prod
+    _         -> Nothing
 
--- | Transport mode for the MCP server
 data Transport = Stdio | Http deriving (Show, Eq)
 
 mkTransport :: String -> Maybe Transport
-mkTransport "stdio" = Just Stdio
-mkTransport "http" = Just Http
-mkTransport _ = Nothing
+mkTransport s = case map toLower s of
+    "stdio" -> Just Stdio
+    "http"  -> Just Http
+    _       -> Nothing
 
 data Config = Config
-    { port :: Port
+    { port       :: Port
     , healthPort :: Port
-    , env :: Env
-    , transport :: Transport
+    , env        :: Env
+    , transport  :: Transport
     }
     deriving (Show, Eq)
 
 -------------------------------------------------------------------------------
--- 2. Defaults
+-- 2. Custom Option Readers
 -------------------------------------------------------------------------------
-defaultConfig :: Config
-defaultConfig =
-    Config
-        { port = Port 30090
-        , healthPort = Port 30091
-        , env = Dev
-        , transport = Stdio
-        }
+readPort :: ReadM Port
+readPort = maybeReader $ \s -> readMaybe s >>= mkPort
+
+readEnv :: ReadM Env
+readEnv = maybeReader mkEnv
+
+readTransport :: ReadM Transport
+readTransport = maybeReader mkTransport
 
 -------------------------------------------------------------------------------
--- 3. Configuration Loading (IO)
+-- 3. Declarative Parser (Takes Defaults as an Argument)
+-------------------------------------------------------------------------------
+
+-- | The parser uses the injected 'defaults' as its fallback values.
+configParser :: Config -> Parser Config
+configParser defaults = Config
+    <$> option readPort
+        ( long "port"
+       <> value (port defaults)
+       <> showDefault
+       <> help "Primary application port" )
+    <*> option readPort
+        ( long "health-port"
+       <> value (healthPort defaults)
+       <> showDefault
+       <> help "Health check port" )
+    <*> option readEnv
+        ( long "env"
+       <> value (env defaults)
+       <> showDefault
+       <> help "Environment (dev | staging | prod)" )
+    <*> option readTransport
+        ( long "transport"
+       <> value (transport defaults)
+       <> showDefault
+       <> help "Transport mode (stdio | http)" )
+
+-------------------------------------------------------------------------------
+-- 4. Entry Point (IO)
 -------------------------------------------------------------------------------
 
 -- | Primary entry point to fetch configuration
 get :: IO Config
 get = do
-    args <- getArgs
-    envPort <- lookupEnv "PORT"
-    envHealthPort <- lookupEnv "HEALTH_PORT"
-    envName <- lookupEnv "ENV"
-    envTransport <- lookupEnv "TRANSPORT"
+    -- 1. Fetch from Environment
+    envPortStr <- lookupEnv "PORT"
+    envHealthStr <- lookupEnv "HEALTH_PORT"
+    envNameStr <- lookupEnv "ENV"
+    envTransportStr <- lookupEnv "TRANSPORT"
 
-    -- Build base config from Environment or Defaults
-    let base =
-            defaultConfig
-                { port = fromMaybe (port defaultConfig) (envPort >>= readMaybe >>= mkPort)
-                , healthPort = fromMaybe (healthPort defaultConfig) (envHealthPort >>= readMaybe >>= mkPort)
-                , env = fromMaybe (env defaultConfig) (envName >>= mkEnv . map toLower)
-                , transport = fromMaybe (transport defaultConfig) (envTransport >>= mkTransport . map toLower)
-                }
+    -- 2. Safely parse Env Vars, falling back to absolute hardcoded defaults if missing
+    let defaultPort      = fromMaybe (Port 30090) (envPortStr >>= readMaybe >>= mkPort)
+        defaultHealth    = fromMaybe (Port 30091) (envHealthStr >>= readMaybe >>= mkPort)
+        defaultEnv       = fromMaybe Dev          (envNameStr >>= mkEnv)
+        defaultTransport = fromMaybe Stdio        (envTransportStr >>= mkTransport)
 
-    -- Apply CLI overrides
-    return $ parseArgs args base
+        -- This Config represents (Environment Variables OR Hardcoded Defaults)
+        envDefaults = Config defaultPort defaultHealth defaultEnv defaultTransport
 
--------------------------------------------------------------------------------
--- 4. Argument Parsing (The Smart Update Pattern)
--------------------------------------------------------------------------------
-
--- | Recursively walks the argument list and updates the Config record
-parseArgs :: [String] -> Config -> Config
-parseArgs ("--port" : v : rest) =
-    parseArgs rest . \cfg -> cfg{port = fromMaybe (port cfg) (readMaybe v >>= mkPort)}
-parseArgs ("--env" : v : rest) =
-    parseArgs rest . \cfg -> cfg{env = fromMaybe (env cfg) (mkEnv (map toLower v))}
-parseArgs ("--transport" : v : rest) =
-    parseArgs rest . \cfg -> cfg{transport = fromMaybe (transport cfg) (mkTransport (map toLower v))}
-parseArgs ("--health-port" : v : rest) =
-    parseArgs rest . \cfg -> cfg{healthPort = fromMaybe (healthPort cfg) (readMaybe v >>= mkPort)}
-parseArgs (_ : rest) = parseArgs rest
-parseArgs [] = id
+    -- 3. Run the parser, injecting envDefaults into the blueprint
+    execParser $ info (configParser envDefaults <**> helper)
+        ( fullDesc
+       <> progDesc "Start the Kubernetes MCP server"
+       <> header "Kubernetes MCP - Model Context Protocol Server" )
