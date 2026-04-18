@@ -15,14 +15,22 @@
       inputs.just.follows = "just";
       inputs.nix2container.follows = "nix2container";
     };
-    # Rig Agentic Brain
-    rig-brain = {
-      url = "path:./rig-brain";
+    # Agentic Brain
+    agent-brain = {
+      url = "path:./agent-brain";
       inputs.nixpkgs.follows = "nixpkgs";
       inputs.flake-utils.follows = "flake-utils";
       inputs.just.follows = "just";
       inputs.nix2container.follows = "nix2container";
     };
+    # # Swarm Brain - Elixir
+    # swarm-brain = {
+    #   url = "path:./swarm-brain";
+    #   inputs.nixpkgs.follows = "nixpkgs";
+    #   inputs.flake-utils.follows = "flake-utils";
+    #   inputs.just.follows = "just";
+    #   inputs.nix2container.follows = "nix2container";
+    # };
   };
 
   # The '@ inputs' allows the let block to see 'inputs.kubernetes-mcp-src'
@@ -55,7 +63,8 @@
         # Generate bundles for every microservice
         bundles = [
           (mkAppBundle "kubernetes-mcp" self.inputs.kubernetes-mcp)
-          (mkAppBundle "rig-brain" self.inputs.rig-brain)
+          (mkAppBundle "agent-brain" self.inputs.agent-brain)
+          # (mkAppBundle "swarm-brain" self.inputs.swarm-brain)
         ];
         # When you add a second app, just add a line like this:
         # ghBundle = mkAppBundle "github-mcp" inputs.github-mcp-src;

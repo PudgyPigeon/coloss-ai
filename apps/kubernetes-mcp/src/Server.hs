@@ -66,4 +66,3 @@ run cfg = do
                     , httpEndpoint = "/mcp"
                     , httpVerbose = Config.env cfg == Config.Dev
                     }
-
