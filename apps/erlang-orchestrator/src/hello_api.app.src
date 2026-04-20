@@ -1,0 +1,9 @@
+{application,
+ hello_api,
+ [{description, "Agent Orchestrator"},
+  {vsn, "0.1.0"},
+  {registered, []},
+  {mod, {hello_api, []}},
+  {applications, [kernel, stdlib, cowboy, jsx]},
+  {env, []},
+  {modules, []}]}.
