@@ -1,0 +1,18 @@
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ~/models/ollama_storage:/root/.ollama
+    devices:
+      - nvidia.com/gpu=all
+
+  # Helper service to pull the model and then exit
+  ollama-puller:
+    image: curlimages/curl:latest
+    container_name: ollama-puller
+    depends_on:
+      - ollama
+    entrypoint: [ "curl", "-X", "POST", "http://ollama:11434/api/pull", "-d", '{"name": "qwen3.5:9b"}' ]

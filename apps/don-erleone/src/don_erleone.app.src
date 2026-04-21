@@ -4,6 +4,6 @@
   {vsn, "0.1.0"},
   {registered, []},
   {mod, {entrypoint, []}}, %% entrypoint module
-  {applications, [kernel, stdlib, cowboy, jsx]},
+  {applications, [kernel, stdlib, cowboy, jsx, inets]},
   {env, []},
   {modules, []}]}.
