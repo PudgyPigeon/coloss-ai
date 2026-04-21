@@ -1,0 +1,9 @@
+{application,
+ don_erleone,
+ [{description, "Don Erleone - Agent Orchestrator"},
+  {vsn, "0.1.0"},
+  {registered, []},
+  {mod, {entrypoint, []}}, %% entrypoint module
+  {applications, [kernel, stdlib, cowboy, jsx]},
+  {env, []},
+  {modules, []}]}.

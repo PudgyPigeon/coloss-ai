@@ -1,5 +1,5 @@
 {
-  description = "Erlang Orchestrator - Supervised Agent Infrastructure";
+  description = "Don Erleone - Supervised Agent Infrastructure";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -16,11 +16,15 @@
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = import nixpkgs { inherit system; };
-        rebar3Lib = nix-rebar3.lib.${system};
+        beamPkgs = pkgs.beam.packages.erlang_28;
+        rebar3Lib = nix-rebar3.lib.${system}.override {
+          erlang = beamPkgs.erlang;
+          rebar3 = beamPkgs.rebar3;
+        };
         n2c = nix2container.packages.${system}.nix2container;
 
-        appName = "erlang-orchestrator";
-        otpName = "hello_api"; 
+        appName = "don_erleone";
+        otpName = "don_erleone"; 
         version = "0.1.0";
 
         erlApp = rebar3Lib.buildRebar3 {
@@ -38,11 +42,11 @@
             export HOME=$TEMPDIR
           '';
 
-          postInstall = ''
-            if [ -f "$out/bin/${otpName}" ]; then
-              ln -s "$out/bin/${otpName}" "$out/bin/${appName}"
-            fi
-          '';
+          # postInstall = ''
+          #   if [ -f "$out/bin/${otpName}" ]; then
+          #     ln -s "$out/bin/${otpName}" "$out/bin/${appName}"
+          #   fi
+          # '';
         };
 
         containerImage = n2c.buildImage {
@@ -80,9 +84,9 @@
 
         devShells.default = pkgs.mkShell {
           buildInputs = [
-            pkgs.beam.packages.erlang_27.erlang
-            pkgs.beam.packages.erlang_27.rebar3
-            pkgs.beam.packages.erlang_27.erlfmt
+            beamPkgs.erlang  # Uses the variable defined above
+            beamPkgs.rebar3
+            beamPkgs.erlfmt
             pkgs.inotify-tools
             pkgs.just
           ];
@@ -91,7 +95,18 @@
             export REBAR3_CACHE_DIR=$PWD/.nix-rebar3
             export PATH=$PWD/_build/default/bin:$PATH
 
-            echo "--- ${appName} Dev Shell (OTP 27) ---"
+            # ANSI Color Codes
+            BOLD="\033[1m"
+            CYAN="\033[36m"
+            GREEN="\033[32m"
+            RESET="\033[0m"
+
+            # Fetch OTP version once to keep it clean
+            OTP_VER=$(erl -noshell -eval 'io:fwrite("~s", [erlang:system_info(otp_release)]), halt().')
+
+            echo -e "\n''${BOLD}''${CYAN}--- ${appName} Dev Shell (OTP ''${OTP_VER}) ---''${RESET}"
+            echo -e "''${GREEN}✔''${RESET} Cache:  ''${BOLD}.nix-rebar3''${RESET}"
+            echo -e "''${GREEN}✔''${RESET} Status: ''${BOLD}The Don is Open''${RESET}\n"
           '';
         };
       });

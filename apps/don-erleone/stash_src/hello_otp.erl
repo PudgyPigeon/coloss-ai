@@ -33,7 +33,7 @@ init(supervisor_init) ->
 %% The Gen_server (the worker)
 %% This is the worker's init. It starts with a count of 0
 init(worker_init) ->
-    {ok, 0}. %% InitialCount
+    {ok, 0}. 
 
 %% React to 'add': NewState = Count + 1. Reply with 'ok'
 %% Function below that is pattern matching - React to read: state stays the same. reply with count

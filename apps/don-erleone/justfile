@@ -2,9 +2,9 @@
 
 # Variables
 system      := `nix eval --raw --impure --expr 'builtins.currentSystem'`
-app_name    := "erlang-orchestrator"
-otp_name    := "hello_api"
-cookie      := "hello_api_cookie"
+app_name    := "don_erleone"
+otp_name    := "don_erleone"
+cookie      := "don_erleone_cookie"
 config      := "config/sys.config"
 
 # Aliases
