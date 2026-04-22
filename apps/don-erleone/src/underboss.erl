@@ -11,12 +11,16 @@ recruit_sub_agent(Type) ->
     supervisor:start_child(?MODULE, [Type]).
 
 init([]) ->
-    SupFlags =
-        #{strategy => simple_one_for_one,
-          intensity => 10,
-          period => 5},
-    ChildSpecs =
-        [#{id => caporegime,
-           start => {caporegime, start_link, []},
-           type => supervisor}],
+    SupFlags = #{
+        strategy => simple_one_for_one,
+        intensity => 10,
+        period => 5
+    },
+    ChildSpecs = [
+        #{
+            id => caporegime,
+            start => {caporegime, start_link, []},
+            type => supervisor
+        }
+    ],
     {ok, {SupFlags, ChildSpecs}}.

@@ -8,8 +8,10 @@ services:
       - ~/models/ollama_storage:/root/.ollama
     devices:
       - nvidia.com/gpu=all
+    environment:
+      - OLLAMA_NUM_PARALLEL=2     
+      - OLLAMA_MAX_LOADED_MODELS=2 
 
-  # Helper service to pull the model and then exit
   ollama-puller:
     image: curlimages/curl:latest
     container_name: ollama-puller

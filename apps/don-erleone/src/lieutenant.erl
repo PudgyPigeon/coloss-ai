@@ -2,8 +2,14 @@
 
 -behaviour(gen_server).
 
--export([start_link/1, assign_contract/2, report_back/2, init/1, handle_call/3,
-         handle_cast/2]).
+-export([
+    start_link/1,
+    assign_contract/2,
+    report_back/2,
+    init/1,
+    handle_call/3,
+    handle_cast/2
+]).
 
 start_link([Type]) ->
     gen_server:start_link(?MODULE, [Type], []).

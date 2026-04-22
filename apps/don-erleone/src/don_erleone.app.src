@@ -1,9 +1,13 @@
 {application,
  don_erleone,
- [{description, "Don Erleone - Agent Orchestrator"},
+ [{description,
+   "Don Erleone - Agentic Brain  Orchestrator"},
   {vsn, "0.1.0"},
   {registered, []},
   {mod, {entrypoint, []}}, %% entrypoint module
-  {applications, [kernel, stdlib, cowboy, jsx, inets]},
+  {applications,
+   [kernel, stdlib, mnesia, cowboy, jsx, inets]},
   {env, []},
-  {modules, []}]}.
+  {modules, []}]}
+
+.

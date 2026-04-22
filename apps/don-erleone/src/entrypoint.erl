@@ -4,8 +4,6 @@
 
 -export([start/2, stop/1]).
 
-start(_Type, _Args) ->
-    don_erleone:start_link().
+start(_Type, _Args) -> don_erleone:start_link().
 
-stop(_State) ->
-    ok.
+stop(_State) -> ok.

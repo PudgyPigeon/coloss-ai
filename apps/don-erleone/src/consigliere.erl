@@ -1,116 +1,126 @@
 -module(consigliere).
+-include("records.hrl").
 -behaviour(gen_server).
 
--export([start_link/0, handle_mission/1]).
+-export([start_link/1, handle_mission/1]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2]).
 
--record(config, {
-    ollama_url :: string(),
-    model      :: string(),
-    timeout    :: integer()
-}).
+%% ------------------------------------------------------------------------
 
-%% --- API ---
-start_link() ->
-    gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
+start_link(Config) ->
+    gen_server:start_link({local, ?MODULE}, ?MODULE, Config, []).
 
 handle_mission(Prompt) ->
     gen_server:call(?MODULE, {ollama, Prompt}, infinity).
 
-%% --- Callbacks ---
+init(Config) ->
+    {ok, Config}.   
 
-init([]) ->
-    %% 1. Fetch values with type-safe defaults
-    ModelRaw   = application:get_env(don_erleone, ollama_model, "qwen3.5:9b"),
-    URLRaw     = application:get_env(don_erleone, ollama_url, "http://localhost:11434/api/generate"),
-    TimeoutRaw = application:get_env(don_erleone, timeout, 3600000),
-
-    %% 2. Sanitizer: Strip typos and ghosts
-    CleanStr = fun(S) -> 
-        case is_list(S) or is_binary(S) of
-            true ->
-                C = re:replace(S, "[^a-zA-Z0-9\\.\\:\\/\\-_]", "", [global, {return, list}]),
-                %% Handle 'bb' and 'ee' trailing ghosts
-                case lists:suffix("ee", C) of true -> lists:droplast(C); false -> 
-                case lists:suffix("bb", C) of true -> lists:droplast(C); false -> C end end;
-            false -> S
-        end
-    end,
-
-    %% 3. Type-safe timeout handling
-    Timeout = case TimeoutRaw of
-        T when is_integer(T) -> T;
-        T when is_list(T); is_binary(T) ->
-            list_to_integer(re:replace(T, "[^0-9]", "", [global, {return, list}]));
-        _ -> 3600000
-    end,
-
-    inets:start(),
-    {ok, #config{
-        ollama_url = CleanStr(URLRaw),
-        model      = CleanStr(ModelRaw),
-        timeout    = Timeout
-    }}.
+%% ------------------------------------------------------------------------
 
 handle_call({ollama, Prompt}, _From, Config) ->
-    Result = call_ollama(Prompt, Config),
+    Result = case call_ollama(Prompt, Config) of
+        {ok, Data} -> process_llm_response(Data, Prompt); 
+        {error, _} = Err -> Err
+    end,
     {reply, Result, Config};
 
-handle_call(_Request, _From, Config) ->
+handle_call(_Req, _From, Config) ->
     {reply, {error, unknown_call}, Config}.
 
 handle_cast(_Msg, Config) -> {noreply, Config}.
 handle_info(_Msg, Config) -> {noreply, Config}.
 
-%% --- Private Functions ---
+%% ------------------------------------------------------------------------
 
-call_ollama(Prompt, #config{ollama_url = URL, model = Model, timeout = T}) ->
-    io:format("Consigliere: Consulting brain (~s) at ~s~n", [Model, URL]),
-    
-    %% SRE Fix: Give the model 2048 tokens and a stern System Prompt 
-    %% to stop it from getting stuck in a reasoning loop.
-    Payload = jsx:encode(#{
-        <<"model">>  => iolist_to_binary(Model),
+call_ollama(Prompt, Config) ->
+    Payload = prepare_payload(Prompt, Config),
+    perform_request(Payload, Config).
+
+prepare_payload(Prompt, #config{model = M, stream = S, systemPrompt = SP}) ->
+    jsx:encode(#{
+        <<"model">> => iolist_to_binary(M),
         <<"prompt">> => iolist_to_binary(Prompt),
-        <<"stream">> => false,
-        <<"system">> => <<"You are a helpful assistant. Output the answer immediately. Do not overthink.">>,
+        <<"stream">> => S,
+        <<"system">> => SP,
+        <<"format">> => <<"json">>,
         <<"options">> => #{
-            <<"num_predict">> => 2048, %% Enough room for yapping + joke
-            <<"temperature">> => 0.8
+            <<"num_predict">> => 4096,
+            <<"temperature">> => 0.2
         }
-    }),
+    }).
+
+perform_request(Payload, #config{ollama_url = URL, timeout = T}) ->
+    io:format("Consigliere: Consulting brain at ~s~n", [URL]),
+    Options = [{timeout, T}],
+    Request = {URL, [], "application/json", Payload},
     
-    case httpc:request(post, {URL, [], "application/json", Payload}, [{timeout, T}], []) of
+    case httpc:request(post, Request, Options, []) of
         {ok, {{_, 200, _}, _Headers, Body}} ->
-            parse_response(Body);
+            io:format("RAW OLLAMA DATA: ~s~n", [Body]), %% ADD THIS LINE
+            decode_json(Body);
         {ok, {{_, Status, _}, _, Body}} ->
-            {error, io_lib:format("Ollama HTTP ~p: ~s", [Status, Body])};
+            {error, {http_error, Status, Body}};
         {error, Reason} ->
             handle_error(Reason)
     end.
 
-parse_response(Body) ->
-    try
-        BinaryBody = iolist_to_binary(Body),
-        Data = jsx:decode(BinaryBody, [return_maps]),
-        
-        %% Log the "yapping" for SRE debugging
-        case maps:find(<<"thinking">>, Data) of
-            {ok, Thinking} -> io:format("~nDEBUG Reasoning:~n~s~n", [Thinking]);
-            error -> ok
-        end,
+%% ------------------------------------------------------------------------
 
-        case maps:find(<<"response">>, Data) of
-            {ok, <<>>} -> 
-                {ok, <<"Model exhausted tokens while thinking. Try a larger model.">>};
-            {ok, BinaryResponse} -> 
-                {ok, BinaryResponse};
-            error -> 
-                {error, <<"Malformed response">>}
-        end
+decode_json(Body) ->
+    Bin = iolist_to_binary(Body),
+    try
+        Data = jsx:decode(Bin, [return_maps]),
+        case maps:find(<<"reasoning">>, Data) of
+            {ok, Thoughts} -> io:format("~n[BRAIN REASONING]:~n~s~n", [Thoughts]);
+            _ -> ok
+        end,
+        {ok, Data}
     catch
-        _:_ -> {error, <<"Failed to decode Ollama JSON">>}
+       Error:Reason:Stack -> 
+            io:format("CRITICAL: JSON Decode Failed!~nBody: ~s~nError: ~p:~p~nStack: ~p~n", 
+                      [Bin, Error, Reason, Stack]),
+            {error, malformed_json}
     end.
+    
+%% ------------------------------------------------------------------------
+
+process_llm_response(OllamaData, Prompt) ->
+    %% Different models put JSON in 'response', or 'thinking', or 'content'
+    RawOptions = [
+        maps:get(<<"response">>, OllamaData, <<>>),
+        maps:get(<<"thinking">>, OllamaData, <<>>),
+        maps:get(<<"content">>, OllamaData, <<>>)
+    ],
+
+    ActualData = find_json_payload(RawOptions),
+
+    Response = maps:get(<<"response">>, ActualData, <<"Acknowledged.">>),
+    IsDelegated = maps:get(<<"delegate_required">>, ActualData, false),
+    
+    route_mission(IsDelegated, ActualData, Response, Prompt).
+
+find_json_payload([]) -> #{};
+find_json_payload([<<>> | T]) -> find_json_payload(T);
+find_json_payload([Bin | T]) ->
+    try 
+        jsx:decode(Bin, [return_maps])
+    catch _:_ -> 
+        find_json_payload(T)
+    end.
+
+%% ------------------------------------------------------------------------
+
+route_mission(true, Data, Response, Prompt) ->
+    Intent = maps:get(<<"tool_intent">>, Data, <<"unknown">>),
+    {ok, Id} = mission_store:post_mission(Intent, Prompt),
+    io:format("DEBUG: Mission ~p logged for: ~s~n", [Id, Intent]),
+    {ok, Response, #{mission_id => Id}};
+
+route_mission(false, _Data, Response, _Prompt) ->
+    {ok, Response, #{mission_id => null}}.
+
+%% ------------------------------------------------------------------------
 
 handle_error(Reason) ->
     io:format("Consigliere Network Error: ~p~n", [Reason]),

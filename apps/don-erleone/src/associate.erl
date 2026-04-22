@@ -14,8 +14,10 @@ init([LtPid, Contract]) ->
     {ok, {LtPid, Contract}}.
 
 handle_info(execute, {LtPid, Contract}) ->
-    io:format("[Associate] Executing hit: ~p~n", [Contract]),
-
+    io:format(
+        "[Associate] Executing hit: ~p~n",
+        [Contract]
+    ),
     %% 1. CALL OLLAMA (Local LLM Reasoning)
     %% 2. CALL HASKELL MCP (The Tool)
     %% Simulate work
