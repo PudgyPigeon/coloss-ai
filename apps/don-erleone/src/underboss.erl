@@ -1,5 +1,4 @@
 -module(underboss).
-
 -behaviour(supervisor).
 
 -export([start_link/0, recruit_sub_agent/1, init/1]).

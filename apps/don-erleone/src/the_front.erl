@@ -30,7 +30,6 @@ init([]) ->
     io:format("The Front (HTTP) is active on port 8080...~n"),
     {ok, #{}}.
 
-%% Standard gen_server boilerplate
 handle_call(_Req, _From, State) -> {reply, ok, State}.
 
 handle_cast(_Msg, State) -> {noreply, State}.

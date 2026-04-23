@@ -13,42 +13,46 @@ init(_Args) ->
     _ = inets:start(),
     _ = mnesia:start(),
     ok = mission_store:init_db(),
-
+    
     Config = load_config(),
-
+    %% Pool Settings
+    PoolArgs = [
+        {name, {local, consigliere_pool}},
+        {worker_module, consigliere_worker},
+        {size, 5},
+        {max_overflow, 10}
+    ],
     SupFlags = #{
         strategy => one_for_one,
         intensity => 5,
         period => 10
     },
-
     ChildSpecs = [
+        poolboy:child_spec(consigliere_pool, PoolArgs, [Config]),
         #{
             id => the_front,
             start => {the_front, start_link, []}
         },
         #{
-            id => consigliere,
-            %,
-            start => {consigliere, start_link, [Config]}
+            id => underboss,
+            start => {underboss, start_link, []},
+            type => supervisor
         }
-        % #{id => underboss,       start => {underboss, start_link, []}, type => supervisor}
     ],
-
     {ok, {SupFlags, ChildSpecs}}.
 
 %% ------------------------------------------------------------------------
 
 load_config() ->
-    ModelRaw   = application:get_env(don_erleone, ollama_model, "qwen3.5:9b"),
-    URLRaw     = application:get_env(don_erleone, ollama_url, "http://localhost:11434/api/generate"),
+    ModelRaw = application:get_env(don_erleone, ollama_model, "qwen2.5:7b"),
+    URLRaw = application:get_env(don_erleone, ollama_url, "http://localhost:11434/api/generate"),
     TimeoutRaw = application:get_env(don_erleone, timeout, 3600000),
-    
+
     #config{
-        ollama_url   = clean_string(URLRaw),
-        model        = clean_string(ModelRaw),
-        timeout      = parse_timeout(TimeoutRaw),
-        stream       = false,
+        ollama_url = clean_string(URLRaw),
+        model = clean_string(ModelRaw),
+        timeout = parse_timeout(TimeoutRaw),
+        stream = false,
         systemPrompt = get_system_prompt()
     }.
 
@@ -57,33 +61,38 @@ load_config() ->
 clean_string(S) when is_list(S); is_binary(S) ->
     C = re:replace(S, "[^a-zA-Z0-9\\.\\:\\/\\-_]", "", [global, {return, list}]),
     strip_ghost_chars(C);
-clean_string(S) -> S.
+clean_string(S) ->
+    S.
 
 strip_ghost_chars(S) ->
     case lists:suffix("ee", S) or lists:suffix("bb", S) of
-        true  -> lists:droplast(S);
+        true -> lists:droplast(S);
         false -> S
     end.
 
 parse_timeout(T) when is_integer(T) -> T;
 parse_timeout(T) when is_list(T); is_binary(T) ->
     list_to_integer(re:replace(T, "[^0-9]", "", [global, {return, list}]));
-parse_timeout(_) -> 3600000.
+parse_timeout(_) ->
+    3600000.
 
 get_system_prompt() ->
-    <<"You are the Consigliere, the high-level controller of an automated SRE infrastructure. 
-      You have a fleet of Underbosses (agents) that handle Kubernetes and Nix tasks.
-      
-      CRITICAL INSTRUCTIONS:
-      1. When a user asks for a deployment (like nginx), you DO NOT say 'I cannot'. 
-      2. Instead, you MUST set 'delegate_required': true and 'tool_intent': 'k8s_deploy'.
-      3. Your 'response' field should be a confirmation to the user that you are initiating the mission.
-      
-      OUTPUT FORMAT (STRICT JSON ONLY):
-      {
-        \"reasoning\": \"internal logic\",
-        \"response\": \"message to user\",
-        \"delegate_required\": true,
-        \"tool_intent\": \"intent_name\",
-        \"mcp_args\": {}
-      }">>.
+    <<
+        "You are the Consigliere, the high-level controller of an automated SRE infrastructure. \n"
+        "      You have a fleet of Underbosses (agents) that handle Kubernetes and Nix tasks.\n"
+        "      \n"
+        "      CRITICAL INSTRUCTIONS:\n"
+        "      1. When a user asks for a deployment (like nginx), you DO NOT say 'I cannot'. \n"
+        "      2. Instead, you MUST set 'delegate_required': true and 'tool_intent': 'k8s_deploy'.\n"
+        "      3. Your 'response' field should be a confirmation to the user that you are initiating the mission.\n"
+        "      4. If a user is requesting information or answers that you belive you can answer without delegating, do so.\n"
+        "      \n"
+        "      OUTPUT FORMAT (STRICT JSON ONLY):\n"
+        "      {\n"
+        "        \"reasoning\": \"internal logic\",\n"
+        "        \"response\": \"message to user\",\n"
+        "        \"delegate_required\": true,\n"
+        "        \"tool_intent\": \"intent_name\",\n"
+        "        \"mcp_args\": {}\n"
+        "      }"
+    >>.

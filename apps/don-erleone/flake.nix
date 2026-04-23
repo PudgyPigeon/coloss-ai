@@ -34,19 +34,12 @@
           releaseType = "release";
           profile = "prod";
 
-          # Prevents Nix from auditing internal Rebar3 symlinks
           singleStep = true;
           dontFixup = true;
 
           preInstall = ''
             export HOME=$TEMPDIR
           '';
-
-          # postInstall = ''
-          #   if [ -f "$out/bin/${otpName}" ]; then
-          #     ln -s "$out/bin/${otpName}" "$out/bin/${appName}"
-          #   fi
-          # '';
         };
 
         containerImage = n2c.buildImage {
@@ -101,7 +94,6 @@
             GREEN="\033[32m"
             RESET="\033[0m"
 
-            # Fetch OTP version once to keep it clean
             OTP_VER=$(erl -noshell -eval 'io:fwrite("~s", [erlang:system_info(otp_release)]), halt().')
 
             echo -e "\n''${BOLD}''${CYAN}--- ${appName} Dev Shell (OTP ''${OTP_VER}) ---''${RESET}"
