@@ -10,71 +10,94 @@ start_link() ->
     supervisor:start_link({local, ?MODULE}, ?MODULE, []).
 
 init(_Args) ->
-    _ = inets:start(),
-    _ = mnesia:start(),
     ok = mission_store:init_db(),
-    
+
     Config = load_config(),
-    %% Pool Settings
-    PoolArgs = [
-        {name, {local, consigliere_pool}},
-        {worker_module, consigliere_worker},
-        {size, 5},
-        {max_overflow, 10}
-    ],
+    SubConfig = load_sub_config(),
+
+
     SupFlags = #{
         strategy => one_for_one,
         intensity => 5,
         period => 10
     },
+
     ChildSpecs = [
-        poolboy:child_spec(consigliere_pool, PoolArgs, [Config]),
         #{
             id => the_front,
-            start => {the_front, start_link, []}
+            start => {the_front, start_link, []},
+            restart => permanent,
+            type => worker
         },
         #{
-            id => underboss,
-            start => {underboss, start_link, []},
+            id => genco_operations_sup,
+            start => {genco_operations_sup, start_link, [Config, SubConfig]},
+            restart => permanent,
             type => supervisor
         }
     ],
     {ok, {SupFlags, ChildSpecs}}.
 
 %% ------------------------------------------------------------------------
+%% Config for the main consigliere (large model)
+%% ------------------------------------------------------------------------
 
 load_config() ->
-    ModelRaw = application:get_env(don_erleone, ollama_model, "qwen2.5:7b"),
-    URLRaw = application:get_env(don_erleone, ollama_url, "http://localhost:11434/api/generate"),
-    TimeoutRaw = application:get_env(don_erleone, timeout, 3600000),
+    Model = get_env_string(ollama_model, "qwen2.5:7b"),
+    URL = get_env_string(ollama_url, "http://localhost:11434/api/generate"),
+    Timeout = get_env_integer(timeout, 3600000),
 
     #config{
-        ollama_url = clean_string(URLRaw),
-        model = clean_string(ModelRaw),
-        timeout = parse_timeout(TimeoutRaw),
+        ollama_url = URL,
+        model = Model,
+        timeout = Timeout,
         stream = false,
-        systemPrompt = get_system_prompt()
+        system_prompt = get_system_prompt()
     }.
 
 %% ------------------------------------------------------------------------
+%% Config for subordinate agents (smaller/faster model)
+%% ------------------------------------------------------------------------
 
-clean_string(S) when is_list(S); is_binary(S) ->
-    C = re:replace(S, "[^a-zA-Z0-9\\.\\:\\/\\-_]", "", [global, {return, list}]),
-    strip_ghost_chars(C);
-clean_string(S) ->
-    S.
+load_sub_config() ->
+    Model = get_env_string(sub_model, "qwen2.5:1.5b"),
+    URL = get_env_string(ollama_url, "http://localhost:11434/api/generate"),
+    Timeout = get_env_integer(sub_timeout, 120000),
 
-strip_ghost_chars(S) ->
-    case lists:suffix("ee", S) or lists:suffix("bb", S) of
-        true -> lists:droplast(S);
-        false -> S
+    #sub_config{
+        ollama_url = URL,
+        model = Model,
+        timeout = Timeout
+    }.
+
+%% ------------------------------------------------------------------------
+%% Environment helpers — safe, no regex hacks
+%% ------------------------------------------------------------------------
+
+get_env_string(Key, Default) ->
+    case application:get_env(don_erleone, Key) of
+        {ok, Val} when is_list(Val) -> Val;
+        {ok, Val} when is_binary(Val) -> binary_to_list(Val);
+        _ -> Default
     end.
 
-parse_timeout(T) when is_integer(T) -> T;
-parse_timeout(T) when is_list(T); is_binary(T) ->
-    list_to_integer(re:replace(T, "[^0-9]", "", [global, {return, list}]));
-parse_timeout(_) ->
-    3600000.
+get_env_integer(Key, Default) ->
+    case application:get_env(don_erleone, Key) of
+        {ok, Val} when is_integer(Val) -> Val;
+        {ok, Val} when is_list(Val) ->
+            try list_to_integer(Val)
+            catch _:_ -> Default
+            end;
+        {ok, Val} when is_binary(Val) ->
+            try binary_to_integer(Val)
+            catch _:_ -> Default
+            end;
+        _ -> Default
+    end.
+
+%% ------------------------------------------------------------------------
+%% System prompt for the consigliere brain
+%% ------------------------------------------------------------------------
 
 get_system_prompt() ->
     <<
@@ -85,7 +108,7 @@ get_system_prompt() ->
         "      1. When a user asks for a deployment (like nginx), you DO NOT say 'I cannot'. \n"
         "      2. Instead, you MUST set 'delegate_required': true and 'tool_intent': 'k8s_deploy'.\n"
         "      3. Your 'response' field should be a confirmation to the user that you are initiating the mission.\n"
-        "      4. If a user is requesting information or answers that you belive you can answer without delegating, do so.\n"
+        "      4. If a user is requesting information or answers that you believe you can answer without delegating, do so.\n"
         "      \n"
         "      OUTPUT FORMAT (STRICT JSON ONLY):\n"
         "      {\n"

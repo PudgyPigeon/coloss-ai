@@ -1,12 +1,12 @@
 {application,
  don_erleone,
  [{description,
-   "Don Erleone - Agentic Brain  Orchestrator"},
+   "Don Erleone - Agentic Brain Orchestrator"},
   {vsn, "0.1.0"},
-  {registered, []},
-  {mod, {entrypoint, []}}, 
+  {registered, [don_erleone, the_front, underboss]},
+  {mod, {entrypoint, []}},
   {applications,
-   [kernel, stdlib, mnesia, cowboy, jsx, inets]},
+   [kernel, stdlib, inets, mnesia, cowboy, jsx, poolboy]},
   {env, []},
   {modules, []}]}
 

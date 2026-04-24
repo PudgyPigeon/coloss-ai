@@ -20,14 +20,22 @@ start_link() ->
     ).
 
 init([]) ->
-    Dispatch = cowboy_router:compile([{'_', [{"/v1/chat/completions", openai_handler, []}]}]),
+    Dispatch = cowboy_router:compile([
+        {'_', [
+            {"/v1/chat/completions", openai_handler, []},
+            {"/health", health_handler, []}
+        ]}
+    ]),
+
+    %% Stop any existing listener before starting (crash recovery safety)
+    _ = cowboy:stop_listener(http_frontend_listener),
 
     {ok, _} = cowboy:start_clear(
         http_frontend_listener,
         [{port, 8080}],
         #{env => #{dispatch => Dispatch}}
     ),
-    io:format("The Front (HTTP) is active on port 8080...~n"),
+    logger:info("The Front (HTTP) is active on port 8080"),
     {ok, #{}}.
 
 handle_call(_Req, _From, State) -> {reply, ok, State}.

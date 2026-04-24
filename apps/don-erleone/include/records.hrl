@@ -1,10 +1,17 @@
-%% Global config for the agent
+%% Global config for the main consigliere brain
 -record(config, {
-    ollama_url   :: string(),
-    model        :: string(),
-    timeout      :: integer(),
-    stream       :: boolean(), 
-    systemPrompt :: binary()
+    ollama_url    :: string(),
+    model         :: string(),
+    timeout       :: integer(),
+    stream        :: boolean(),
+    system_prompt :: binary()
+}).
+
+%% Config for sub-agent (caporegime) Ollama calls — smaller/faster models
+-record(sub_config, {
+    ollama_url :: string(),
+    model      :: string(),
+    timeout    :: integer()
 }).
 
 %% The mission ledger entry
@@ -14,6 +21,8 @@
     intent,           %% k8s_status, check_mcp, etc.
     raw_prompt,       %% Original user input
     status = pending, %% pending, in_progress, completed, failed
+    result,           %% Final result from sub-agents
+    error,            %% Error reason if failed
     context_tokens,   %% Store the Ollama 'context' array here
     timestamp
 }).
