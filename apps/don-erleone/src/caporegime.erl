@@ -5,6 +5,10 @@
 
 -export([start_link/1, init/1, handle_call/3, handle_cast/2, handle_info/2]).
 
+-ifdef(TEST).
+-compile(export_all).
+-endif.
+
 %% Poolboy passes worker arguments as a list; we unwrap it here.
 start_link([SubConfig]) ->
     gen_server:start_link(?MODULE, SubConfig, []).
@@ -16,8 +20,10 @@ init(SubConfig) ->
 handle_call({execute_mission, MissionSpec}, _From, SubConfig) ->
     #{id := MissionId, intent := Intent} = MissionSpec,
 
-    logger:info("Caporegime ~p executing mission ~p (intent=~s)",
-                [self(), MissionId, Intent]),
+    logger:info(
+        "Caporegime ~p executing mission ~p (intent=~s)",
+        [self(), MissionId, Intent]
+    ),
 
     mission_store:update_status(MissionId, in_progress),
 
@@ -32,7 +38,6 @@ handle_call({execute_mission, MissionSpec}, _From, SubConfig) ->
 execute(<<"k8s_deploy">>, Prompt, Args, SubConfig) ->
     SubPrompt = build_sub_prompt(<<"k8s_deploy">>, Prompt, Args),
     call_sub_model(SubPrompt, SubConfig);
-
 execute(<<"check_mcp">>, Prompt, Args, SubConfig) ->
     case maps:get(<<"endpoint">>, Args, undefined) of
         undefined ->
@@ -42,7 +47,6 @@ execute(<<"check_mcp">>, Prompt, Args, SubConfig) ->
         URL when is_binary(URL) ->
             call_mcp_endpoint(URL, Args, SubConfig)
     end;
-
 execute(Intent, Prompt, Args, SubConfig) ->
     SubPrompt = build_sub_prompt(Intent, Prompt, Args),
     call_sub_model(SubPrompt, SubConfig).
@@ -75,8 +79,10 @@ do_execute(MissionSpec, SubConfig) ->
         execute(Intent, Prompt, Args, SubConfig)
     catch
         Class:Error:Stack ->
-            logger:error("Caporegime mission ~p crashed: ~p:~p~n~p",
-                        [MissionId, Class, Error, Stack]),
+            logger:error(
+                "Caporegime mission ~p crashed: ~p:~p~n~p",
+                [MissionId, Class, Error, Stack]
+            ),
             {error, {crash, Error}}
     end.
 
@@ -91,23 +97,35 @@ build_sub_prompt(<<"k8s_deploy">>, Prompt, Args) ->
     iolist_to_binary([
         <<"You are a Kubernetes deployment sub-agent.\n">>,
         <<"Generate a valid YAML manifest for the following request.\n">>,
-        <<"Request: ">>, Prompt, <<"\n">>,
-        <<"Arguments: ">>, jsx:encode(Args), <<"\n">>,
+        <<"Request: ">>,
+        Prompt,
+        <<"\n">>,
+        <<"Arguments: ">>,
+        jsx:encode(Args),
+        <<"\n">>,
         <<"Respond with JSON: {\"manifest\": \"<yaml>\", \"status\": \"ready\"}">>
     ]);
 build_sub_prompt(<<"check_mcp">>, Prompt, _Args) ->
     iolist_to_binary([
         <<"You are an infrastructure status sub-agent.\n">>,
         <<"Assess the following request and provide a status report.\n">>,
-        <<"Request: ">>, Prompt, <<"\n">>,
+        <<"Request: ">>,
+        Prompt,
+        <<"\n">>,
         <<"Respond with JSON: {\"status\": \"...\", \"details\": \"...\"}">>
     ]);
 build_sub_prompt(Intent, Prompt, Args) ->
     iolist_to_binary([
         <<"You are a sub-agent executing a delegated task.\n">>,
-        <<"Task intent: ">>, Intent, <<"\n">>,
-        <<"Request: ">>, Prompt, <<"\n">>,
-        <<"Arguments: ">>, jsx:encode(Args), <<"\n">>,
+        <<"Task intent: ">>,
+        Intent,
+        <<"\n">>,
+        <<"Request: ">>,
+        Prompt,
+        <<"\n">>,
+        <<"Arguments: ">>,
+        jsx:encode(Args),
+        <<"\n">>,
         <<"Respond with JSON containing 'result' and 'status' fields.">>
     ]).
 

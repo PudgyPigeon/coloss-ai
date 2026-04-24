@@ -9,7 +9,6 @@ start_link(Config, SubConfig) ->
     supervisor:start_link({local, ?MODULE}, ?MODULE, [Config, SubConfig]).
 
 init([Config, SubConfig]) ->
-    
     PoolArgs = [
         {name, {local, consigliere_pool}},
         {worker_module, consigliere_worker},
@@ -17,7 +16,7 @@ init([Config, SubConfig]) ->
         {max_overflow, 10}
     ],
 
-    %% rest_for_one guarantees that if the Underboss dies, 
+    %% rest_for_one guarantees that if the Underboss dies,
     %% the Consigliere Pool is restarted to prevent zombie references.
     SupFlags = #{
         strategy => rest_for_one,
@@ -25,7 +24,7 @@ init([Config, SubConfig]) ->
         period => 10
     },
 
-    %% Order is strictly required! 
+    %% Order is strictly required!
     ChildSpecs = [
         #{
             id => underboss,

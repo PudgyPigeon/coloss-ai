@@ -3,6 +3,10 @@
 
 -define(JSON_TYPE, #{<<"content-type">> => <<"application/json">>}).
 
+-ifdef(TEST).
+-compile(export_all).
+-endif.
+
 init(Req0, State) ->
     {ok, Body, Req} = cowboy_req:read_body(Req0),
     case parse_request(Body, Req) of
@@ -56,17 +60,17 @@ handle_mission_response({ok, Answer, Meta}, Req, State) ->
     MissionId = maps:get(mission_id, Meta, null),
     Resp = build_success_response(Answer, MissionId),
     {ok, cowboy_req:reply(200, ?JSON_TYPE, Resp, Req), State};
-
 handle_mission_response({error, Reason}, Req, State) ->
     logger:warning("Consigliere failed: ~p", [Reason]),
     ErrorResp = build_error_response(Reason),
     {ok, cowboy_req:reply(500, ?JSON_TYPE, ErrorResp, Req), State}.
 
 build_success_response(Answer, MissionId) ->
-    IdStr = case MissionId of
-        null -> <<"null">>;
-        _ -> iolist_to_binary(io_lib:format("~p", [MissionId]))
-    end,
+    IdStr =
+        case MissionId of
+            null -> <<"null">>;
+            _ -> iolist_to_binary(io_lib:format("~p", [MissionId]))
+        end,
     jsx:encode(#{
         <<"choices">> => [
             #{

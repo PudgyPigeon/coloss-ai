@@ -4,6 +4,10 @@
 
 -export([start_link/1, dispatch_mission/1, init/1]).
 
+-ifdef(TEST).
+-compile(export_all).
+-endif.
+
 start_link(SubConfig) ->
     supervisor:start_link({local, ?MODULE}, ?MODULE, SubConfig).
 
@@ -46,6 +50,8 @@ do_dispatch(MissionSpec) ->
 
 handle_dispatch_error(MissionSpec, Class, Reason, Stack) ->
     Id = maps:get(id, MissionSpec),
-    logger:error("Underboss failed to dispatch mission ~p. ~p:~p~n~p",
-                 [Id, Class, Reason, Stack]),
+    logger:error(
+        "Underboss failed to dispatch mission ~p. ~p:~p~n~p",
+        [Id, Class, Reason, Stack]
+    ),
     mission_store:fail_mission(Id, {dispatch_failed, Reason}).

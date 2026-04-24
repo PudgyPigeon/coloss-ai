@@ -1,6 +1,10 @@
 -module(consigliere).
 -export([handle_mission/3]).
 
+-ifdef(TEST).
+-compile(export_all).
+-endif.
+
 %% Dispatches a mission to the consigliere pool asynchronously.
 %% CowboyFrom = {Pid, Tag} — the cowboy handler blocks on receive for this Tag.
 handle_mission(SessionId, Prompt, CowboyFrom) ->
@@ -16,8 +20,10 @@ do_dispatch(SessionId, Prompt, CowboyFrom) ->
         end)
     catch
         Class:Error:Stack ->
-            logger:error("Consigliere pool dispatch failed: ~p:~p~n~p",
-                         [Class, Error, Stack]),
+            logger:error(
+                "Consigliere pool dispatch failed: ~p:~p~n~p",
+                [Class, Error, Stack]
+            ),
             %% Unblock the cowboy handler so it doesn't hang for 120s
             {CowboyPid, CowboyTag} = CowboyFrom,
             CowboyPid ! {CowboyTag, {error, {pool_error, Error}}}

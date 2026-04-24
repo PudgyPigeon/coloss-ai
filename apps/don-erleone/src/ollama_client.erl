@@ -4,6 +4,10 @@
 
 -export([generate/3, generate/4]).
 
+-ifdef(TEST).
+-compile(export_all).
+-endif.
+
 %% @doc Call Ollama with a prompt, system prompt, and previous context.
 %% Used by the consigliere for the main reasoning call.
 generate(Prompt, SystemPrompt, Opts) ->
@@ -44,12 +48,14 @@ do_request(URL, Payload, Timeout) ->
 to_binary(Data) ->
     case Data of
         B when is_binary(B) -> B;
-        L when is_list(L) -> 
+        L when is_list(L) ->
             case unicode:characters_to_binary(L) of
                 Result when is_binary(Result) -> Result;
-                _ -> list_to_binary(L) %% Fallback
+                %% Fallback
+                _ -> list_to_binary(L)
             end;
-        Other -> iolist_to_binary(io_lib:format("~p", [Other]))
+        Other ->
+            iolist_to_binary(io_lib:format("~p", [Other]))
     end.
 
 to_list(Data) ->

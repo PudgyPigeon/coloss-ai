@@ -5,6 +5,10 @@
 
 -export([start_link/1, init/1, handle_call/3, handle_cast/2, handle_info/2]).
 
+-ifdef(TEST).
+-compile(export_all).
+-endif.
+
 %% Poolboy passes arguments as a list; we unwrap it here.
 start_link([Config]) ->
     gen_server:start_link(?MODULE, Config, []).
@@ -49,30 +53,40 @@ process_and_route(SessionId, OllamaData, Prompt) ->
 
 route_mission(SessionId, true, MissionData, Prompt) ->
     handle_delegated_mission(SessionId, MissionData, Prompt);
-
 route_mission(SessionId, false, MissionData, Prompt) ->
     handle_direct_answer(SessionId, MissionData, Prompt).
 
 handle_delegated_mission(SessionId, MissionData, Prompt) ->
-    #{ <<"tool_intent">> := Intent, <<"context">> := NewContext,
-       <<"response">> := Response, <<"mcp_args">> := Args } = MissionData,
+    #{
+        <<"tool_intent">> := Intent,
+        <<"context">> := NewContext,
+        <<"response">> := Response,
+        <<"mcp_args">> := Args
+    } = MissionData,
     {ok, Id} = mission_store:post_mission(SessionId, Intent, Prompt, NewContext),
 
-    logger:info("Worker ~p delegated mission ~p (intent=~s, session=~s)",
-                [self(), Id, Intent, SessionId]),
+    logger:info(
+        "Worker ~p delegated mission ~p (intent=~s, session=~s)",
+        [self(), Id, Intent, SessionId]
+    ),
 
     MissionSpec = build_mission_spec(Id, SessionId, Intent, Args, Prompt),
     underboss:dispatch_mission(MissionSpec),
     {ok, Response, #{mission_id => Id}}.
 
 handle_direct_answer(SessionId, MissionData, Prompt) ->
-    #{ <<"context">> := NewContext, <<"response">> := Response } = MissionData,
+    #{<<"context">> := NewContext, <<"response">> := Response} = MissionData,
     {ok, Id} = mission_store:post_mission(SessionId, <<"direct_answer">>, Prompt, NewContext),
     {ok, Response, #{mission_id => Id}}.
 
 build_mission_spec(Id, SessionId, Intent, Args, Prompt) ->
-    #{ id => Id, session_id => SessionId, intent => Intent,
-       args => Args, prompt => Prompt }.
+    #{
+        id => Id,
+        session_id => SessionId,
+        intent => Intent,
+        args => Args,
+        prompt => Prompt
+    }.
 
 extract_mission_data(OllamaData) ->
     RawOptions = [

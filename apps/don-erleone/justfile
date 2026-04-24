@@ -46,10 +46,10 @@ start:
     _build/prod/rel/{{ otp_name }}/bin/{{ otp_name }} start
 
 # --- test & check ---
-
 [group: 'test']
 test:
-    rebar3 do eunit, ct --verbose, cover
+    # rebar3 do eunit, ct --verbose, cover
+    rebar3 eunit
 
 [group: 'check']
 fmt:

@@ -13,10 +13,14 @@
     get_pending_missions/0
 ]).
 
+-ifdef(TEST).
+-compile(export_all).
+-endif.
+
 %% ram_copies for POC — switch to disc_copies for production durability
 init_db() ->
     _ = mnesia:start(),
-    case 
+    case
         mnesia:create_table(mission, [
             {attributes, record_info(fields, mission)},
             {index, [session_id, status]},
@@ -27,7 +31,8 @@ init_db() ->
             mnesia:wait_for_tables([mission], 5000);
         {aborted, {already_exists, mission}} ->
             mnesia:wait_for_tables([mission], 5000);
-        {aborted, Reason} -> {error, Reason}
+        {aborted, Reason} ->
+            {error, Reason}
     end.
 
 post_mission(SessionId, Intent, Prompt, Context) ->
