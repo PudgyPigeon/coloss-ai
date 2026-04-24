@@ -1,5 +1,5 @@
 {
-  description = "Haskell MCP Server - K8S Microservice";
+  description = "Agent Orchestration Brain - Servant API";
 
   # Where to pull in pinned packages and tools from
   inputs = {
@@ -42,7 +42,7 @@
 
         # Define the Haskell package
         # callCabal2nix looks at your .cabal file to determine dependencies
-        haskellPkg = hpkgs.callCabal2nix "kubernetes-mcp" ./. { };
+        haskellPkg = hpkgs.callCabal2nix "agent-brain" ./. { };
 
         # Add system-level modifiers (like pkg-config or zlib)
         haskellPkgFinal = pkgs.haskell.lib.overrideCabal haskellPkg (drv: {
@@ -59,7 +59,7 @@
 
         # Define the Container Image
         containerImage = n2c.buildImage {
-          name = "kubernetes-mcp";
+          name = "agent-brain";
           tag = "latest";
 
           # Use a layer for static/heavy dependencies to speed up rebuilds
@@ -71,13 +71,12 @@
 
           config = {
             # Use Entrypoint so it's "locked" as the binary
-            Entrypoint = [ "${pkgs.haskell.lib.justStaticExecutables haskellPkgFinal}/bin/kubernetes-mcp" ];
+            Entrypoint = [ "${pkgs.haskell.lib.justStaticExecutables haskellPkgFinal}/bin/agent-brain" ];
             # Optional: You can put default Cmd here, but Helm args will override them
             Cmd = [ ];
             WorkingDir = "/tmp";
             User = "1000";
             Env = [
-              "PATH=${pkgs.kubectl}/bin"
               "SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt"
             ];
           };
@@ -98,7 +97,7 @@
         apps = {
           default = {
             type = "app";
-            program = "${haskellPkgFinal}/bin/kubernetes-mcp";
+            program = "${haskellPkgFinal}/bin/agent-brain";
           };
           load-image = {
             type = "app";
@@ -122,19 +121,17 @@
             hpkgs.apply-refact
             hpkgs.eventlog2html
 
-            # Kubernetes CLI (required at runtime for kubectl subprocess calls)
-            pkgs.kubectl
-
             # Profiling & Performance
             hpkgs.eventlog2html # Visualizing K8S MCP performance
 
             # External Flake Tools
+            pkgs.jq
             just.packages.${system}.default
             ghciwatch.packages.${system}.default
           ];
 
           shellHook = ''
-            echo "--- Kubernetes MCP Development Environment ---"
+            echo "--- Agent Brain Development Environment ---"
             echo "Compiler: $(ghc --version)"
             echo "Tools available: fourmolu, hlint, eventlog2html, just"
           '';

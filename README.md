@@ -114,3 +114,7 @@ https://github.com/NVIDIA/nvkind
 https://www.reddit.com/r/kubernetes/comments/1ilb8v2/minikube_versus_kind_gpu_support/#:~:text=Some%20say%20that%20it's%20easier%20to%20gain,GPU%20operator**%20*%20**Kata%20containers**%20*%20**K3S%2DNVidia**
 
 https://github.com/NVIDIA/gpu-operator/issues/662
+
+
+# For models -> Look at Opus distill for smaller B models that replicate Claude Opus
+https://huggingface.co/Jackrong/collections

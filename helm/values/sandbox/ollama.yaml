@@ -11,8 +11,9 @@ image:
 models:
   pullOnStart: true
   initial:
-    - "llama3:8b"
-    - "gemma4:e4b"
+    # - "llama3:8b"
+    # - "gemma4:e4b"
+    - "qwen3.5:0.8b"
     # - "gemma4:26b"
     # - "granite-code:20b"
     # - "x/flux2-klein:9b"

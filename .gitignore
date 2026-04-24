@@ -18,3 +18,26 @@ dist-newstyle/
 dist/
 build/
 bin/
+
+
+# Elixir / Phoenix
+_build/
+deps/
+assets/node_modules/
+*.ez
+erl_crash.dump
+cover/
+.elixir_ls/
+.fetch
+.nix-mix/
+.nix-hex/
+*.beam
+
+# Secrets & Local Config
+.secret.exs
+.env
+
+# Stashes
+.stash
+data/
+*archived

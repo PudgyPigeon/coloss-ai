@@ -1,7 +1,7 @@
 cabal-version:      3.12
-name:               kubernetes-mcp
+name:               agent-brain
 version:            0.1.0.0
-synopsis:           Haskell MCP server for Kubernetes
+synopsis:           Servant API for Agent Orchestration Brain
 license:            Apache-2.0
 license-file:       LICENSE
 author:             PudgyPigeon
@@ -25,16 +25,15 @@ library
         -fsplit-sections  
     exposed-modules:  
         Server,
-        Health,
-        Kubernetes,
-        Types,
-        Config
+        -- Health,
+        -- Types,
+        -- Config
+    build-depends:    
     build-depends:    
         base >=4.21.0.0,
         aeson,
-        mcp-server,
-        typed-process,
-        aeson,
+        servant,
+        servant-server,
         text,
         bytestring,
         wai,
@@ -44,12 +43,12 @@ library
     hs-source-dirs:   src
     default-language: GHC2024
 
-executable kubernetes-mcp
+executable agent-brain
     import:           warnings
     main-is:          Main.hs
     build-depends:
         base >=4.21.0.0,
-        kubernetes-mcp
+        agent-brain
     hs-source-dirs:   app
     default-language: GHC2024
     ghc-options: 
@@ -64,7 +63,7 @@ executable kubernetes-mcp
             -optl-Wl,--strip-all 
             -optl-Wl,--gc-sections
 
-test-suite kubernetes-mcp-test
+test-suite agent-brain-test
     import:           warnings
     default-language: GHC2024
     type:             exitcode-stdio-1.0
@@ -73,4 +72,4 @@ test-suite kubernetes-mcp-test
     build-depends:
         base >=4.21.0.0,
         sydtest,           
-        kubernetes-mcp
+        agent-brain

@@ -1,0 +1,92 @@
+# Don Erleone — Bug Fixes & Underboss Delegation Architecture
+
+## Bugs Fixed
+
+### Critical — Would Crash at Runtime
+
+| File | Bug | Fix |
+|------|-----|-----|
+| `lieutenant.erl:33` | `consigliere ! {mission_complete, Res}` sends to unregistered name → `badarg` crash | Lieutenant now reports back via `mission_store` directly |
+| `lieutenant.erl:14` | `start_link([Type])` pattern won't match `caporegime`'s call `{lieutenant, start_link, [Type]}` (passes raw value, not a list) | Fixed signature to `start_link/3` with proper args |
+| `recruiter.erl:12` | `recruit(RecruiterPid, {LtPid, Contract})` — lieutenant passes `self()` as `RecruiterPid` but that's the **lieutenant's** PID, not the recruiter's. Lieutenant had no way to discover recruiter. | Lieutenant now discovers recruiter via `supervisor:which_children(CaporegimePid)` |
+| `associate.erl:30` | `{stop, normal, ok}` — third element should be **State**, not `ok` | Fixed to `{stop, normal, Contract}` |
+
+### Moderate — Correctness / Safety
+
+| File | Bug | Fix |
+|------|-----|-----|
+| `don_erleone.erl:61-71` | `strip_ghost_chars/1` — strips trailing chars if string ends in "ee" or "bb". Would corrupt model names like `mistral:7b-instruct-v0.3-q4_0` or URLs | Removed entirely; replaced with safe `get_env_string/2` |
+| `don_erleone.erl:13` | `inets:start()` in supervisor init but `inets` not in app dependencies | Added `inets` to `.app.src` dependencies (auto-starts) |
+| `don_erleone.app.src` | `poolboy` missing from app dependencies | Added to dependencies list |
+| `mission_store.erl:55` | `get_pending/0` dead stub returning `ok` | Implemented as `get_pending_missions/0` with proper mnesia query |
+| `openai_handler.erl:37` | Error catch returns `cowboy_req:reply(400, Req0)` with no JSON body | Added JSON error body for consistency |
+| `consigliere_worker.erl` | No try/catch around worker logic — Ollama parse failure kills pool worker permanently | Wrapped in try/catch, returns `{error, {worker_crash, ...}}` |
+| `consigliere_worker.erl:82` | `httpc:request` missing `connect_timeout` option | Added `{connect_timeout, 5000}` |
+
+### Minor — Code Quality
+
+| Issue | Fix |
+|-------|-----|
+| `io:format` used everywhere for logging | Replaced with OTP `logger` module |
+| Confusing `From` / `_From` naming in consigliere_worker | Renamed to `CowboyFrom` / `_PoolFrom` |
+| `consigliere_worker` routes to `<<"none">>` intent for non-delegated | Changed to `<<"direct_answer">>` for clarity |
+
+---
+
+## New Architecture — Underboss Delegation Flow
+
+```mermaid
+graph TD
+    A["openai_handler (Cowboy)"] -->|"SessionId, Prompt, From"| B["consigliere (poolboy facade)"]
+    B -->|"spawns into pool"| C["consigliere_worker"]
+    C -->|"calls Ollama (large model)"| D{"delegate_required?"}
+    D -->|"false"| E["Direct response to user"]
+    D -->|"true"| F["underboss:dispatch_mission/1"]
+    F -->|"simple_one_for_one"| G["caporegime (supervisor)"]
+    G -->|"rest_for_one"| H["lieutenant (gen_server)"]
+    G -->|"rest_for_one"| I["recruiter (supervisor)"]
+    H -->|"plan_sub_tasks/1"| J["Sub-task planning"]
+    J -->|"find_recruiter → recruit/2"| I
+    I -->|"simple_one_for_one"| K["associate (gen_server)"]
+    K -->|"Ollama (small model)"| L["ollama_query"]
+    K -->|"HTTP POST"| M["mcp_call"]
+    K -->|"result"| H
+    H -->|"all complete"| N["mission_store:complete_mission/2"]
+```
+
+### Key Design Decisions
+
+1. **PID Discovery**: Lieutenant finds its recruiter sibling via `supervisor:which_children(CaporegimePid)`. The caporegime passes its own PID to the lieutenant at start.
+
+2. **Temporary Restart**: All mission crew processes use `restart => temporary` — a failed mission doesn't auto-retry. The consigliere has already replied to the user.
+
+3. **rest_for_one Strategy**: Caporegime uses `rest_for_one` so if the lieutenant crashes, the recruiter (and its associates) are killed too. Clean teardown.
+
+4. **Sub-task Planning**: `lieutenant:plan_sub_tasks/1` maps intents to concrete sub-tasks. Currently handles `k8s_deploy`, `check_mcp`, and a fallback. Easy to extend.
+
+5. **Two-tier Ollama**: Consigliere uses the large model (`qwen3.5:9b`) for reasoning/routing. Associates use a smaller model (`qwen2.5:1.5b`) for executing sub-tasks.
+
+---
+
+## Files Changed
+
+| File | Change |
+|------|--------|
+| [records.hrl](file:///home/nixos/Documents/agent_project/localhost_agent/apps/don-erleone/include/records.hrl) | Added `sub_config`, `sub_task` records; added `result`/`error` fields to `mission` |
+| [don_erleone.app.src](file:///home/nixos/Documents/agent_project/localhost_agent/apps/don-erleone/src/don_erleone.app.src) | Added `inets`, `poolboy` to deps; registered process names |
+| [don_erleone.erl](file:///home/nixos/Documents/agent_project/localhost_agent/apps/don-erleone/src/don_erleone.erl) | Removed `strip_ghost_chars` hack, safe env helpers, `sub_config` loading |
+| [the_front.erl](file:///home/nixos/Documents/agent_project/localhost_agent/apps/don-erleone/src/the_front.erl) | Crash-safe listener restart, health endpoint, logger |
+| [health_handler.erl](file:///home/nixos/Documents/agent_project/localhost_agent/apps/don-erleone/src/health_handler.erl) | **[NEW]** Health check endpoint |
+| [openai_handler.erl](file:///home/nixos/Documents/agent_project/localhost_agent/apps/don-erleone/src/openai_handler.erl) | JSON error body, logger, cleaner receive |
+| [consigliere_worker.erl](file:///home/nixos/Documents/agent_project/localhost_agent/apps/don-erleone/src/consigliere_worker.erl) | try/catch safety, connect_timeout, clear naming |
+| [underboss.erl](file:///home/nixos/Documents/agent_project/localhost_agent/apps/don-erleone/src/underboss.erl) | Accepts `SubConfig`, `dispatch_mission/1`, temporary restart |
+| [caporegime.erl](file:///home/nixos/Documents/agent_project/localhost_agent/apps/don-erleone/src/caporegime.erl) | Passes `SubConfig` + `MissionSpec` + self PID, rest_for_one |
+| [lieutenant.erl](file:///home/nixos/Documents/agent_project/localhost_agent/apps/don-erleone/src/lieutenant.erl) | **Complete rewrite** — mission planning, associate orchestration, result aggregation |
+| [recruiter.erl](file:///home/nixos/Documents/agent_project/localhost_agent/apps/don-erleone/src/recruiter.erl) | Simplified `recruit/2` interface |
+| [associate.erl](file:///home/nixos/Documents/agent_project/localhost_agent/apps/don-erleone/src/associate.erl) | **Complete rewrite** — actual Ollama + MCP execution |
+| [mission_store.erl](file:///home/nixos/Documents/agent_project/localhost_agent/apps/don-erleone/src/mission_store.erl) | Added `update_status`, `complete_mission`, `fail_mission`, `get_pending_missions` |
+| [sys.config](file:///home/nixos/Documents/agent_project/localhost_agent/apps/don-erleone/config/sys.config) | Added `sub_model`, `sub_timeout` |
+
+## Verification
+
+Compiled cleanly with `rebar3 compile` on OTP 28 — zero errors, zero warnings.

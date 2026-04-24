@@ -41,8 +41,9 @@ healthApp cfg request response =
         _ ->
             response $ responseLBS status404 [("Content-Type", "text/plain")] "Not Found"
 
--- | Start the health check server on the configured health port.
--- This should be run in a separate thread alongside the MCP server.
+{- | Start the health check server on the configured health port.
+This should be run in a separate thread alongside the MCP server.
+-}
 runHealthServer :: Config -> IO ()
 runHealthServer cfg = do
     let (Config.Port hp) = Config.healthPort cfg
