@@ -17,14 +17,15 @@
       let
         pkgs = import nixpkgs { inherit system; };
         beamPkgs = pkgs.beam.packages.erlang_28;
+        n2c = nix2container.packages.${system}.nix2container;
+
         rebar3Lib = nix-rebar3.lib.${system}.override {
           erlang = beamPkgs.erlang;
           rebar3 = beamPkgs.rebar3;
         };
-        n2c = nix2container.packages.${system}.nix2container;
 
-        appName = "don_erleone";
-        otpName = "don_erleone";
+        appName = "don-erleone";
+        releaseName = "don_erleone";
         version = "0.1.0";
 
         erlApp = rebar3Lib.buildRebar3 {
@@ -33,28 +34,69 @@
           root = ./.;
           releaseType = "release";
           profile = "prod";
-
           singleStep = true;
-          dontFixup = true;
-
+          dontFixup = false;
+          dontCheckForBrokenSymlinks = true;
           preInstall = ''
             export HOME=$TEMPDIR
           '';
         };
 
+        relBinPath = "${erlApp}/bin/${releaseName}";
+
+        run-script = pkgs.writeShellScriptBin "don-erleone-runner" ''
+          set -e
+
+          # 1. Standardize mutable paths
+          export RELEASE_TMP=''${RELEASE_TMP:-/tmp}
+          export RELX_OUT_FILE_PATH=''${RELX_OUT_FILE_PATH:-/tmp}
+          export RELX_REPLACE_OS_VARS=true
+
+          # 2. Start EPMD (Erlang Port Mapper Daemon)
+          # We use || true because it might already be running
+          echo "=> Starting EPMD..."
+          ${beamPkgs.erlang}/bin/epmd -daemon || true
+
+          # 3. Boot the app
+          COMMAND=''${1:-foreground}
+          shift || true
+          echo "=> Booting ${appName}..."
+          exec ${relBinPath} "$COMMAND" "$@"
+        '';
+
+        emptyTmp = pkgs.runCommand "empty-tmp" { } "mkdir -p $out/tmp";
+
         containerImage = n2c.buildImage {
           name = appName;
           tag = "latest";
+
+          layers = [
+            (n2c.buildLayer {
+              deps = [
+                (pkgs.busybox.override { enableAppletSymlinks = true; })
+                pkgs.glibc
+                erlApp
+              ];
+              copyToRoot = [ emptyTmp ];
+              perms = [{
+                path = emptyTmp;
+                regex = ".*";
+                mode = "1777";
+              }];
+            })
+          ];
+
           config = {
-            Entrypoint = [ "${erlApp}/bin/${appName}" "foreground" ];
-            WorkingDir = "/tmp";
-            user = "1000";
+            Entrypoint = [ "${run-script}/bin/don-erleone-runner" ];
+            WorkingDir = "/data";
+            User = "1000";
+            Env = [
+              "HOME=/data"
+              "MNESIA_DIR=/data/mnesia"
+              "PATH=${pkgs.busybox}/bin"
+            ];
           };
         };
-
-        run-foreground-binary = pkgs.writeShellScriptBin "run-foreground-binary" ''
-          exec ${erlApp}/bin/${appName} foreground "$@"
-        '';
       in
       {
         formatter = pkgs.nixpkgs-fmt;
@@ -67,7 +109,7 @@
         apps = {
           default = {
             type = "app";
-            program = "${run-foreground-binary}/bin/run-foreground-binary";
+            program = "${run-script}/bin/don-erleone-runner";
           };
           load-image = {
             type = "app";
@@ -77,17 +119,16 @@
 
         devShells.default = pkgs.mkShell {
           buildInputs = [
-            beamPkgs.erlang # Uses the variable defined above
+            beamPkgs.erlang
             beamPkgs.rebar3
             beamPkgs.erlfmt
-            pkgs.inotify-tools
             pkgs.just
           ];
 
           shellHook = ''
             export REBAR3_CACHE_DIR=$PWD/.nix-rebar3
             export PATH=$PWD/_build/default/bin:$PATH
-
+            
             # ANSI Color Codes
             BOLD="\033[1m"
             CYAN="\033[36m"

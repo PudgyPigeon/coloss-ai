@@ -1,0 +1,18 @@
+# Sandbox Environment Overrides for Don Erleone
+# This file is merged with the base chart values by the Nix sync-helm script
+
+replicaCount: 1
+
+image:
+  # Assuming you are building and loading this image directly into minikube
+  repository: don-erleone #localhost/don-erleone
+  pullPolicy: IfNotPresent #Always
+  tag: "latest"
+
+env: {}
+
+# Enable Mnesia disk copies in the sandbox environment to persist agent context
+persistence:
+  enabled: true
+  accessMode: ReadWriteOnce
+  size: 2Gi

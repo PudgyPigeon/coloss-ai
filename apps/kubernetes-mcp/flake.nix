@@ -74,11 +74,12 @@
             Entrypoint = [ "${pkgs.haskell.lib.justStaticExecutables haskellPkgFinal}/bin/kubernetes-mcp" ];
             # Optional: You can put default Cmd here, but Helm args will override them
             Cmd = [ ];
-            WorkingDir = "/tmp";
+            WorkingDir = "/data";
             User = "1000";
             Env = [
               "PATH=${pkgs.kubectl}/bin"
               "SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt"
+              "HOME=/data"
             ];
           };
         };

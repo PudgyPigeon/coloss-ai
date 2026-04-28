@@ -2,8 +2,8 @@
 
 # Variables
 system      := `nix eval --raw --impure --expr 'builtins.currentSystem'`
-app_name    := "don_erleone"
-otp_name    := "don_erleone"
+app_name    := "don-erleone" # The package/image name
+release_name:= "don_erleone" # The Erlang/OTP release name
 cookie      := "don_erleone_cookie"
 config      := "config/sys.config"
 
@@ -21,7 +21,7 @@ default:
 
 [group: 'dev']
 dev:
-    rebar3 shell --sname {{ otp_name }} --setcookie {{ cookie }} --config {{ config }}
+    rebar3 shell --sname {{ release_name }} --setcookie {{ cookie }} --config {{ config }}
 
 [group: 'dev']
 reload:
@@ -39,11 +39,11 @@ release:
 
 [group: 'build']
 run:
-    _build/prod/rel/{{ otp_name }}/bin/{{ otp_name }} foreground
+    _build/prod/rel/{{ release_name }}/bin/{{ release_name }} foreground
 
 [group: 'build']
 start:
-    _build/prod/rel/{{ otp_name }}/bin/{{ otp_name }} start
+    _build/prod/rel/{{ release_name }}/bin/{{ release_name }} start
 
 # --- test & check ---
 [group: 'test']
@@ -53,8 +53,7 @@ test:
 
 [group: 'check']
 fmt:
-    erlfmt -w src/*.erl test/*.erl rebar.config
-    # rebar3 format
+    rebar3 format
 
 [group: 'check']
 ci: fmt
@@ -65,7 +64,7 @@ ci: fmt
 
 [group: 'profile']
 observer:
-    rebar3 shell --sname {{ otp_name }}_obs --eval "observer:start()."
+    rebar3 shell --sname {{ release_name }}_obs --eval "observer:start()."
 
 # --- nix ---
 

@@ -15,6 +15,13 @@ service:
 ollama:
   baseUrl: "http://ollama-internal.ollama.svc.cluster.local:11434"
 
+openai:
+  # baseUrl: "http://don-erleone.don-erleone.svc.cluster.local:8080/v1"
+  baseUrl: ""
+
+# Additional environment variables to inject into the container (Key-Value pairs)
+env: {}
+
 persistence:
   enabled: true
   accessMode: ReadWriteOnce

@@ -2,7 +2,7 @@
 image:
   repository: kubernetes-mcp
   tag: latest
-  pullPolicy: Always #IfNotPresent
+  pullPolicy: IfNotPresent #ays
 
 replicaCount: 1
 fullnameOverride: "kubernetes-mcp"
