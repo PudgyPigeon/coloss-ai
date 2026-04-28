@@ -33,8 +33,8 @@ init(_Args) ->
             type => worker
         },
         #{
-            id => genco_operations_sup,
-            start => {genco_operations_sup, start_link, [Config, SubConfig]},
+            id => the_commission,
+            start => {the_commission, start_link, [Config, SubConfig]},
             restart => permanent,
             type => supervisor
         }

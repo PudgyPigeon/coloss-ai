@@ -4,7 +4,7 @@ don_erleone (Top-Level Supervisor | Strategy: one_for_one)
  ├── the_front (Cowboy HTTP/SSE Ingress Worker)
  │    └── Purpose: Handles incoming API requests and holds streaming connections.
  │
- └── genco_operations_sup (Core Sub-Supervisor | Strategy: rest_for_one)
+ └── the_commission (Core Sub-Supervisor | Strategy: rest_for_one)
       │    └── Purpose: Enforces shared fate between reasoning and execution.
       │
       ├── underboss (Execution Supervisor | Starts First)

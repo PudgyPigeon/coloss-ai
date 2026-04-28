@@ -3,16 +3,13 @@
 -include("../include/records.hrl").
 
 mission_store_test_() ->
-    {setup,
-     fun setup/0,
-     fun cleanup/1,
-     [
-      fun test_post_and_get/0,
-      fun test_update_status/0,
-      fun test_complete_and_fail/0,
-      fun test_get_latest_context/0,
-      fun test_get_pending_missions/0
-     ]}.
+    {setup, fun setup/0, fun cleanup/1, [
+        fun test_post_and_get/0,
+        fun test_update_status/0,
+        fun test_complete_and_fail/0,
+        fun test_get_latest_context/0,
+        fun test_get_pending_missions/0
+    ]}.
 
 setup() ->
     %% Use a custom directory for tests so we don't mess up local dev data
@@ -29,7 +26,7 @@ cleanup(_) ->
     ok.
 
 test_post_and_get() ->
-    {ok, Id} = mission_store:post_mission(<<"sess1">>, <<"intent1">>, <<"prompt">>, [1,2,3]),
+    {ok, Id} = mission_store:post_mission(<<"sess1">>, <<"intent1">>, <<"prompt">>, [1, 2, 3]),
     {ok, Mission} = mission_store:get_mission(Id),
     ?assertEqual(Id, Mission#mission.id),
     ?assertEqual(<<"sess1">>, Mission#mission.session_id),
@@ -57,7 +54,8 @@ test_complete_and_fail() ->
 
 test_get_latest_context() ->
     mission_store:post_mission(<<"ctx_sess">>, <<"i">>, <<"p">>, [1]),
-    timer:sleep(10), %% Ensure timestamp difference
+    %% Ensure timestamp difference
+    timer:sleep(10),
     mission_store:post_mission(<<"ctx_sess">>, <<"i">>, <<"p">>, [1, 2]),
     Context = mission_store:get_latest_context(<<"ctx_sess">>),
     ?assertEqual([1, 2], Context),

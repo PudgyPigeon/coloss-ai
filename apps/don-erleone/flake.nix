@@ -24,7 +24,7 @@
         n2c = nix2container.packages.${system}.nix2container;
 
         appName = "don_erleone";
-        otpName = "don_erleone"; 
+        otpName = "don_erleone";
         version = "0.1.0";
 
         erlApp = rebar3Lib.buildRebar3 {
@@ -77,7 +77,7 @@
 
         devShells.default = pkgs.mkShell {
           buildInputs = [
-            beamPkgs.erlang  # Uses the variable defined above
+            beamPkgs.erlang # Uses the variable defined above
             beamPkgs.rebar3
             beamPkgs.erlfmt
             pkgs.inotify-tools

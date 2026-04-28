@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "don-erleone.fullname" . }}
+  labels:
+    {{- include "don-erleone.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "don-erleone.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "don-erleone.selectorLabels" . | nindent 8 }}
+    spec:
+      imagePullSecrets:
+        {{- toYaml .Values.imagePullSecrets | nindent 8 }}
+      containers:
+        - name: {{ .Chart.Name }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            - name: OLLAMA_URL
+              value: {{ .Values.config.ollamaUrl | quote }}
+            - name: OLLAMA_MODEL
+              value: {{ .Values.config.ollamaModel | quote }}
+            - name: SUB_MODEL
+              value: {{ .Values.config.subModel | quote }}
+            - name: TIMEOUT
+              value: {{ .Values.config.timeout | quote }}
+            - name: SUB_TIMEOUT
+              value: {{ .Values.config.subTimeout | quote }}
+            # Erlang specific environment mapping if using relx (RELX_REPLACE_OS_VARS=true)
+            - name: RELX_REPLACE_OS_VARS
+              value: "true"
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+            # EPMD port for Erlang clustering (if needed later)
+            - name: epmd
+              containerPort: 4369
+              protocol: TCP
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          # For local testing and mnesia state, we map a temporary emptyDir.
+          # Replace with a PVC if long-term persistence is needed.

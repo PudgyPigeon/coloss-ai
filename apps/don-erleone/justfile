@@ -53,7 +53,7 @@ test:
 
 [group: 'check']
 fmt:
-    erlfmt -w src/*.erl rebar.config
+    erlfmt -w src/*.erl test/*.erl rebar.config
     # rebar3 format
 
 [group: 'check']

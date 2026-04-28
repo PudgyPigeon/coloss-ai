@@ -33,7 +33,7 @@ graph TD
     end
 
     subgraph "Ollama Backend"
-        BIG["Large Model (qwen3.5:9b)"]
+        BIG["Large Model (qwen2.5:7b)"]
         SMALL["Small Model (qwen2.5:1.5b)"]
     end
 

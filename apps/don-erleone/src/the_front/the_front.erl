@@ -33,7 +33,7 @@ init([]) ->
     {ok, _} = cowboy:start_clear(
         http_frontend_listener,
         [{port, 8080}],
-        #{env => #{dispatch => Dispatch}}
+        #{env => #{dispatch => Dispatch, idle_timeout => 300000}}
     ),
     logger:info("The Front (HTTP) is active on port 8080"),
     {ok, #{}}.

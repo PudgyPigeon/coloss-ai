@@ -54,4 +54,11 @@ handle_dispatch_error(MissionSpec, Class, Reason, Stack) ->
         "Underboss failed to dispatch mission ~p. ~p:~p~n~p",
         [Id, Class, Reason, Stack]
     ),
-    mission_store:fail_mission(Id, {dispatch_failed, Reason}).
+    mission_store:fail_mission(Id, {dispatch_failed, Reason}),
+    %% Notify the cowboy handler so the SSE stream doesn't hang
+    case maps:get(cowboy_from, MissionSpec, undefined) of
+        {CowboyPid, CowboyTag} ->
+            CowboyPid ! {CowboyTag, {execution_complete, {error, {dispatch_failed, Reason}}}};
+        _ ->
+            ok
+    end.

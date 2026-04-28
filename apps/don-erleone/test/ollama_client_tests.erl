@@ -14,7 +14,13 @@ build_payload_test() ->
     Payload = ollama_client:build_payload("qwen", <<"Hello">>, [1, 2, 3], <<"System">>, false),
     Decoded = jsx:decode(Payload, [return_maps]),
     ?assertEqual(<<"qwen">>, maps:get(<<"model">>, Decoded)),
-    ?assertEqual(<<"Hello">>, maps:get(<<"prompt">>, Decoded)),
-    ?assertEqual([1, 2, 3], maps:get(<<"context">>, Decoded)),
-    ?assertEqual(<<"System">>, maps:get(<<"system">>, Decoded)),
+    Messages = maps:get(<<"messages">>, Decoded),
+    ExpectedMessages = [
+        #{<<"role">> => <<"system">>, <<"content">> => <<"System">>},
+        1,
+        2,
+        3,
+        #{<<"role">> => <<"user">>, <<"content">> => <<"Hello">>}
+    ],
+    ?assertEqual(ExpectedMessages, Messages),
     ?assertEqual(false, maps:get(<<"stream">>, Decoded)).

@@ -1,4 +1,4 @@
--module(genco_operations_sup).
+-module(the_commission).
 -behaviour(supervisor).
 
 -export([start_link/2, init/1]).
