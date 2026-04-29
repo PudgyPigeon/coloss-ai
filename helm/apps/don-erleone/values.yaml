@@ -1,0 +1,47 @@
+replicaCount: 1
+
+image:
+  repository: don-erleone
+  pullPolicy: IfNotPresent
+  tag: "latest"
+
+service:
+  type: ClusterIP
+  port: 8080
+
+config:
+  ollamaUrl: "http://ollama-internal.ollama.svc.cluster.local:11434/api/generate"
+  ollamaModel: "qwen2.5:7b"
+  subModel: "qwen2.5:1.5b"
+  timeout: "3600000"
+  subTimeout: "120000"
+
+# SRE Environment Variables for Nix/Erlang
+env:
+  RELX_REPLACE_OS_VARS: "true"
+  RELX_OUT_FILE_PATH: "/tmp"
+  RELEASE_TMP: "/tmp"
+  MNESIA_DIR: "/data/mnesia"
+  HOME: "/data"
+
+persistence:
+  enabled: false
+  size: 1Gi
+  accessMode: ReadWriteOnce
+  mountPath: /data
+
+podSecurityContext:
+  fsGroup: 1000
+
+securityContext:
+  runAsUser: 1000
+  runAsGroup: 1000
+  allowPrivilegeEscalation: false
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 100m
+    memory: 256Mi

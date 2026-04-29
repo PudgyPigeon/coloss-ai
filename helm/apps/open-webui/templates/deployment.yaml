@@ -22,6 +22,10 @@ spec:
         env:
         - name: OLLAMA_BASE_URL
           value: {{ .Values.ollama.baseUrl | quote }}
+        {{- if .Values.openai.baseUrl }}
+        - name: OPENAI_API_BASE_URL
+          value: {{ .Values.openai.baseUrl | quote }}
+        {{- end }}
         - name: PORT
           value: {{ .Values.service.targetPort | default 8080 | quote }}
         # - name: WEBUI_URL
@@ -31,6 +35,10 @@ spec:
         # Setting ENV to prod ensures the frontend assets are served correctly
         - name: ENV
           value: "prod"
+        {{- range $key, $value := .Values.env }}
+        - name: {{ $key }}
+          value: {{ $value | quote }}
+        {{- end }}
         ports:
         - containerPort: {{ .Values.service.targetPort | default 8080 }}
           name: http

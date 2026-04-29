@@ -18,6 +18,8 @@ update-all:
     (cd apps && nix flake update)
     @echo "Updating Kubernetes MCP..."
     (cd apps/kubernetes-mcp && nix flake update)
+    @echo "Updating Don-Erleone..."
+    (cd apps/don-erleone && nix flake update)
 
 # Format all Nix files in the repository
 [group: 'general']
@@ -37,18 +39,18 @@ kubernetes-mcp-load:
 kubernetes-mcp-run:
     nix run .#kubernetes-mcp
 
-# --- Rig Brain ---
+# --- Don Erleone ---
 
 # Load the image into the local Docker daemon
-[group: 'rig-brain']
-rig-brain-load:
-    nix run .#rig-brain-load
-    minikube image load rig-brain:latest
+[group: 'don-erleone']
+don-erleone-load:
+    nix run .#don-erleone-load
+    minikube image load don-erleone:latest
 
 # Run the orchestrator directly via Nix
-[group: 'rig-brain']
-rig-brain-run:
-    nix run .#rig-brain
+[group: 'don-erleone']
+don-erleone-run:
+    nix run .#don-erleone-run
 
 # --- Infrastructure ---
 
@@ -75,8 +77,8 @@ list-all:
     @just --list
     @echo "\n=== Kubernetes MCP Commands ==="
     @just --justfile apps/kubernetes-mcp/justfile --list
-    @echo "\n=== Rig Brain Commands ==="
-    @just --justfile apps/rig-brain/justfile --list
+    @echo "\n=== Don Erleone Commands ==="
+    @just --justfile apps/don-erleone/justfile --list
 
 # List all low-level Nix apps available in this flake
 [group: 'help']
@@ -90,11 +92,11 @@ nix-apps:
 ##############################################
 # Path to the sub-projects
 haskell_kubernetes_mcp_path := "apps/kubernetes-mcp"
-rust_rig_brain_path := "apps/rig-brain"
+erlang_don_erleone_path := "apps/don-erleone"
 
 # Replace these with your actual public repository URLs
 haskell_kubernetes_mcp_remote := "https://github.com/PudgyPigeon/haskell-kubernetes-mcp.git"
-rust_rig_brain_remote := "https://github.com/your-username/rig-brain.git"
+erlang_don_erleone_remote := "https://github.com/your-username/don-erleone.git"
 
 # Push the Kubernetes MCP code to its own public repo
 [group: 'git']
@@ -106,15 +108,15 @@ git-haskell-kubernetes-mcp-push:
 git-haskell-kubernetes-mcp-pull:
     git subtree pull --prefix={{ haskell_kubernetes_mcp_path }} {{ haskell_kubernetes_mcp_remote }} main --squash
 
-# Push the Rig Brain code to its own public repo
+# Push the Don Erleone code to its own public repo
 [group: 'git']
-git-rust-rig-brain-push:
-    git subtree push --prefix={{ rust_rig_brain_path }} {{ rust_rig_brain_remote }} main
+git-erlang-don-erleone-push:
+    git subtree push --prefix={{ erlang_don_erleone_path }} {{ erlang_don_erleone_remote }} main
 
-# Pull updates from the public Rig Brain repo back into the monorepo
+# Pull updates from the public Don Erleone repo back into the monorepo
 [group: 'git']
-git-rust-rig-brain-pull:
-    git subtree pull --prefix={{ rust_rig_brain_path }} {{ rust_rig_brain_remote }} main --squash
+git-erlang-don-erleone-pull:
+    git subtree pull --prefix={{ erlang_don_erleone_path }} {{ erlang_don_erleone_remote }} main --squash
 
 # --- [ Sub-Project Dispatchers ] ---
 
@@ -123,7 +125,7 @@ git-rust-rig-brain-pull:
 kubernetes-mcp +args:
     @just --justfile apps/kubernetes-mcp/justfile --working-directory apps/kubernetes-mcp {{args}}
 
-# Dispatch any command to the Rig Brain justfile
+# Dispatch any command to the Don Erleone justfile
 [group: 'subdir']
-rig-brain +args:
-    @just --justfile apps/rig-brain/justfile --working-directory apps/rig-brain {{args}}
+don-erleone +args:
+    @just --justfile apps/don-erleone/justfile --working-directory apps/don-erleone {{args}}

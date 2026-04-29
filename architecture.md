@@ -58,7 +58,7 @@ This project builds a **local-first, deterministic Kubernetes environment** desi
 |  |       |           |     |                   |     |                   |              |
 |  |  (HTTPRoute) -----+-----> [ OpenWebUI ]     |     |                   |              |
 |  |                   |     |        |          |     |                   |              |
-|  |                   |     |    (Prompts) -----+-----> [ Rig Brain ]     |              |
+|  |                   |     |    (Prompts) -----+-----> [ Don Erleone ]   |              |
 |  |                   |     |                   |     |      |     |      |              |
 |  | [ Ollama ] <------+---- (LLM Inference) ----+------------+     |      |              |
 |  |                   |     |                   |     |            |      |              |
@@ -103,6 +103,7 @@ The cluster applications are split into logical tiers:
 *   **`apps/` (Applications):** The actual logic and user-facing workloads.
     *   `open-webui`: A ChatGPT-style frontend for talking to Ollama.
     *   `kubernetes-mcp`: Our custom integration agent.
+    *   `don-erleone`: The Erlang/OTP agentic brain orchestrator that handles logic, routing, and tool delegation.
 
 ---
 

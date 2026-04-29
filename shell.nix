@@ -146,6 +146,7 @@ let
     infra-up
     argocd-up
     sync-helm
+    load-images
     expose
   '';
 
@@ -176,6 +177,22 @@ let
     echo "✅ All Helm dependencies are up to date."
   '';
 
+  load-images = pkgs.writeShellScriptBin "load-images" ''
+    set -e
+    eval $(minikube docker-env)
+    echo "📦 Building and loading kubernetes-mcp into local Docker..."
+    nix run ./apps#kubernetes-mcp-load
+    echo "🚀 Loading kubernetes-mcp into Minikube..."
+    minikube image load kubernetes-mcp:latest
+
+    echo "📦 Building and loading don-erleone into local Docker..."
+    nix run ./apps#don-erleone-load
+    echo "🚀 Loading don-erleone into Minikube..."
+    minikube image load don-erleone:latest
+
+    echo "✅ All custom images loaded into Minikube!"
+  '';
+
   sandbox-help = pkgs.writeShellScriptBin "sandbox-help" ''
     echo -e "\033[1;34m--- 🛠️  Sandbox Commands ---\033[0m"
     printf "\033[1;32m%-15s\033[0m %s\n" "up"           "Run full setup (Infra + ArgoCD)"
@@ -189,6 +206,7 @@ let
     printf "\033[1;32m%-15s\033[0m %s\n" "sync-helm --dry-run" "Preview hydrated YAML structure"
     printf "\033[1;32m%-15s\033[0m %s\n" "expose" "Port forward local host services"
     printf "\033[1;32m%-15s\033[0m %s\n" "down"         "Nuke everything (Cluster)"
+    printf "\033[1;32m%-15s\033[0m %s\n" "load-images"  "Build and load local images into Minikube"
     echo -e "\033[1;34m----------------------------\033[0m"
   '';
 in
@@ -211,6 +229,7 @@ pkgs.mkShell {
     sync-helm
     helm-deps-update
     expose
+    load-images
     sandbox-help
     down
   ];

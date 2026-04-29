@@ -4,6 +4,10 @@
 
 -export([start_link/0, init/1]).
 
+-ifdef(TEST).
+-compile(export_all).
+-endif.
+
 %% ------------------------------------------------------------------------
 
 start_link() ->
@@ -14,7 +18,6 @@ init(_Args) ->
 
     Config = load_config(),
     SubConfig = load_sub_config(),
-
 
     SupFlags = #{
         strategy => one_for_one,
@@ -30,8 +33,8 @@ init(_Args) ->
             type => worker
         },
         #{
-            id => genco_operations_sup,
-            start => {genco_operations_sup, start_link, [Config, SubConfig]},
+            id => the_commission,
+            start => {the_commission, start_link, [Config, SubConfig]},
             restart => permanent,
             type => supervisor
         }
@@ -85,14 +88,19 @@ get_env_integer(Key, Default) ->
     case application:get_env(don_erleone, Key) of
         {ok, Val} when is_integer(Val) -> Val;
         {ok, Val} when is_list(Val) ->
-            try list_to_integer(Val)
-            catch _:_ -> Default
+            try
+                list_to_integer(Val)
+            catch
+                _:_ -> Default
             end;
         {ok, Val} when is_binary(Val) ->
-            try binary_to_integer(Val)
-            catch _:_ -> Default
+            try
+                binary_to_integer(Val)
+            catch
+                _:_ -> Default
             end;
-        _ -> Default
+        _ ->
+            Default
     end.
 
 %% ------------------------------------------------------------------------

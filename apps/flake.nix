@@ -16,21 +16,13 @@
       inputs.nix2container.follows = "nix2container";
     };
     # Agentic Brain
-    agent-brain = {
-      url = "path:./agent-brain";
+    don-erleone = {
+      url = "path:./don-erleone";
       inputs.nixpkgs.follows = "nixpkgs";
       inputs.flake-utils.follows = "flake-utils";
       inputs.just.follows = "just";
       inputs.nix2container.follows = "nix2container";
     };
-    # # Swarm Brain - Elixir
-    # swarm-brain = {
-    #   url = "path:./swarm-brain";
-    #   inputs.nixpkgs.follows = "nixpkgs";
-    #   inputs.flake-utils.follows = "flake-utils";
-    #   inputs.just.follows = "just";
-    #   inputs.nix2container.follows = "nix2container";
-    # };
   };
 
   # The '@ inputs' allows the let block to see 'inputs.kubernetes-mcp-src'
@@ -63,11 +55,8 @@
         # Generate bundles for every microservice
         bundles = [
           (mkAppBundle "kubernetes-mcp" self.inputs.kubernetes-mcp)
-          (mkAppBundle "agent-brain" self.inputs.agent-brain)
-          # (mkAppBundle "swarm-brain" self.inputs.swarm-brain)
+          (mkAppBundle "don-erleone" self.inputs.don-erleone)
         ];
-        # When you add a second app, just add a line like this:
-        # ghBundle = mkAppBundle "github-mcp" inputs.github-mcp-src;
       in
       {
         # Merge all 'packages' attributes from every bundle in the list

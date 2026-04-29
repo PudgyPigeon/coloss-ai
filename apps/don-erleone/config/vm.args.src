@@ -1,0 +1,8 @@
+## Name of the node
+-sname don_erleone
+
+## Cookie for distributed erlang
+-setcookie agentic_brain_secret
+
+## Mnesia directory - ensured to be in our writable /data volume
+-mnesia dir '"data/mnesia"'
