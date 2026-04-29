@@ -52,10 +52,14 @@
           export RELX_OUT_FILE_PATH=''${RELX_OUT_FILE_PATH:-/tmp}
           export RELX_REPLACE_OS_VARS=true
 
-          # 2. Start EPMD (Erlang Port Mapper Daemon)
-          # We use || true because it might already be running
+          # 2. Start EPMD using the stripped binary bundled INSIDE the release 
           echo "=> Starting EPMD..."
-          ${beamPkgs.erlang}/bin/epmd -daemon || true
+          EPMD_BIN=$(find ${erlApp} -path "*/erts-*/bin/epmd" -type f | head -n 1)
+          if [ -x "$EPMD_BIN" ]; then
+             "$EPMD_BIN" -daemon || true
+          else
+             echo "=> Warning: Bundled epmd not found. The node will attempt to start it."
+          fi
 
           # 3. Boot the app
           COMMAND=''${1:-foreground}
