@@ -16,3 +16,7 @@ persistence:
   enabled: true
   accessMode: ReadWriteOnce
   size: 2Gi
+
+config:
+  ollamaModel: "qwen3.5:9b"
+  subModel: "qwen3.5:0.8b"

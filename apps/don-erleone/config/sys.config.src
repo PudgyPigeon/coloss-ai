@@ -1,20 +1,12 @@
 [
    {don_erleone, [
-      {ollama_model, "qwen3.5:9b"},
-      {ollama_url, "http://localhost:11434/api/generate"},
-      {timeout, 3600000},
-      %% Sub-agent config (smaller/faster model for lieutenants)
-      {sub_model, "qwen3.5:0.8b"},
-      {sub_timeout, 120000}
+      {ollama_model, "${OLLAMA_MODEL}"},
+      {ollama_url, "${OLLAMA_URL}"},
+      {timeout, "${TIMEOUT}"},
+      {sub_model, "${SUB_MODEL}"},
+      {sub_timeout, "${SUB_TIMEOUT}"}
    ]},
-   {mnesia, [
-    {dir, "data/mnesia"}
-   ]},
-   {kernel, [
-      {logger_level, info}
-   ]},
-   {sasl, [
-      {sasl_error_logger, false},
-      {errlog_type, error}
-   ]}
+   {mnesia, [{dir, "data/mnesia"}]},
+   {kernel, [{logger_level, info}]},
+   {sasl, [{sasl_error_logger, false}]}
 ].

@@ -11,10 +11,11 @@ service:
 
 config:
   ollamaUrl: "http://ollama-internal.ollama.svc.cluster.local:11434/api/generate"
-  ollamaModel: "qwen2.5:7b"
-  subModel: "qwen2.5:1.5b"
+  ollamaModel: "qwen3.5:9b"
+  subModel: "qwen3.5:9b"
   timeout: "3600000"
   subTimeout: "120000"
+  mcpUrl: "http://kubernetes-mcp.infra.svc.cluster.local:30090/mcp"
 
 # SRE Environment Variables for Nix/Erlang
 env:

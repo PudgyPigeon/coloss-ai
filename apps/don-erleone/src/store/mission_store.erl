@@ -1,5 +1,4 @@
 -module(mission_store).
-
 -include("records.hrl").
 
 -export([
@@ -13,30 +12,31 @@
     get_pending_missions/0
 ]).
 
--ifdef(TEST).
--compile(export_all).
--endif.
+%% ------------------------------------------------------------------------
+%% Database Lifecycle
+%% ------------------------------------------------------------------------
 
-%% ram_copies for POC — switch to disc_copies for production durability
 init_db() ->
     _ = mnesia:start(),
-    case
-        mnesia:create_table(mission, [
-            {attributes, record_info(fields, mission)},
-            {index, [session_id, status]},
-            {ram_copies, [node()]}
-        ])
-    of
-        {atomic, ok} ->
-            mnesia:wait_for_tables([mission], 5000);
-        {aborted, {already_exists, mission}} ->
-            mnesia:wait_for_tables([mission], 5000);
-        {aborted, Reason} ->
-            {error, Reason}
+    TableDef = [
+        {attributes, record_info(fields, mission)},
+        {index, [session_id, status]},
+        {ram_copies, [node()]}
+    ],
+    ensure_table(mission, TableDef).
+
+ensure_table(Name, Def) ->
+    case mnesia:create_table(Name, Def) of
+        {atomic, ok} -> mnesia:wait_for_tables([Name], 5000);
+        {aborted, {already_exists, Name}} -> mnesia:wait_for_tables([Name], 5000);
+        {aborted, Reason} -> {error, Reason}
     end.
 
+%% ------------------------------------------------------------------------
+%% Public API (Orchestration)
+%% ------------------------------------------------------------------------
+
 post_mission(SessionId, Intent, Prompt, Context) ->
-    %% Using unique monotonic integers generates cleaner IDs for JSON than make_ref()
     Id = erlang:unique_integer([positive, monotonic]),
     Record = #mission{
         id = Id,
@@ -47,91 +47,72 @@ post_mission(SessionId, Intent, Prompt, Context) ->
         context_tokens = Context,
         timestamp = erlang:system_time(second)
     },
-    F = fun() -> mnesia:write(Record) end,
-    case mnesia:transaction(F) of
+    execute_write(Record, Id).
+
+get_mission(Id) ->
+    execute_read(Id).
+
+get_latest_context(SessionId) ->
+    case mnesia:dirty_index_read(mission, SessionId, #mission.session_id) of
+        [] -> [];
+        List -> 
+            Sorted = sort_by_timestamp(List),
+            extract_context(hd(Sorted))
+    end.
+
+update_status(MissionId, NewStatus) ->
+    modify_mission(MissionId, fun(R) -> R#mission{status = NewStatus} end).
+
+complete_mission(MissionId, Result) ->
+    modify_mission(MissionId, fun(R) -> R#mission{status = completed, result = Result} end).
+
+fail_mission(MissionId, Error) ->
+    modify_mission(MissionId, fun(R) -> R#mission{status = failed, error = Error} end).
+
+get_pending_missions() ->
+    Trans = fun() -> mnesia:index_read(mission, pending, #mission.status) end,
+    case mnesia:transaction(Trans) of
+        {atomic, Results} -> {ok, Results};
+        {aborted, Reason} -> {error, Reason}
+    end.
+
+%% ------------------------------------------------------------------------
+%% Internal Transaction Logic (The "Functional" Chunks)
+%% ------------------------------------------------------------------------
+
+%% Generic record modifier
+modify_mission(Id, UpdateFun) ->
+    Trans = fun() ->
+        case mnesia:read(mission, Id) of
+            [Record] -> mnesia:write(UpdateFun(Record));
+            [] -> {error, not_found}
+        end
+    end,
+    case mnesia:transaction(Trans) of
+        {atomic, ok} -> ok;
+        {atomic, {error, _} = Err} -> Err;
+        {aborted, Reason} -> {error, Reason}
+    end.
+
+execute_write(Record, Id) ->
+    case mnesia:transaction(fun() -> mnesia:write(Record) end) of
         {atomic, ok} -> {ok, Id};
         {aborted, Reason} -> {error, Reason}
     end.
 
-get_mission(Id) ->
-    F = fun() -> mnesia:read(mission, Id) end,
-    case mnesia:transaction(F) of
+execute_read(Id) ->
+    case mnesia:transaction(fun() -> mnesia:read(mission, Id) end) of
         {atomic, [Result]} -> {ok, Result};
         {atomic, []} -> {error, not_found};
         {aborted, Reason} -> {error, Reason}
     end.
 
-get_latest_context(SessionId) ->
-    case mnesia:dirty_index_read(mission, SessionId, #mission.session_id) of
-        [] ->
-            [];
-        List ->
-            Sorted = lists:sort(
-                fun(A, B) -> A#mission.timestamp > B#mission.timestamp end,
-                List
-            ),
-            case (hd(Sorted))#mission.context_tokens of
-                undefined -> [];
-                Tokens -> Tokens
-            end
-    end.
+%% ------------------------------------------------------------------------
+%% Pure Helpers
+%% ------------------------------------------------------------------------
 
-update_status(MissionId, NewStatus) ->
-    F = fun() ->
-        case mnesia:read(mission, MissionId) of
-            [Record] ->
-                mnesia:write(Record#mission{status = NewStatus});
-            [] ->
-                {error, not_found}
-        end
-    end,
-    case mnesia:transaction(F) of
-        {atomic, ok} -> ok;
-        {atomic, {error, _} = Err} -> Err;
-        {aborted, Reason} -> {error, Reason}
-    end.
+sort_by_timestamp(List) ->
+    lists:sort(fun(A, B) -> A#mission.timestamp > B#mission.timestamp end, List).
 
-complete_mission(MissionId, Result) ->
-    F = fun() ->
-        case mnesia:read(mission, MissionId) of
-            [Record] ->
-                mnesia:write(Record#mission{
-                    status = completed,
-                    result = Result
-                });
-            [] ->
-                {error, not_found}
-        end
-    end,
-    case mnesia:transaction(F) of
-        {atomic, ok} -> ok;
-        {atomic, {error, _} = Err} -> Err;
-        {aborted, Reason} -> {error, Reason}
-    end.
-
-fail_mission(MissionId, Error) ->
-    F = fun() ->
-        case mnesia:read(mission, MissionId) of
-            [Record] ->
-                mnesia:write(Record#mission{
-                    status = failed,
-                    error = Error
-                });
-            [] ->
-                {error, not_found}
-        end
-    end,
-    case mnesia:transaction(F) of
-        {atomic, ok} -> ok;
-        {atomic, {error, _} = Err} -> Err;
-        {aborted, Reason} -> {error, Reason}
-    end.
-
-get_pending_missions() ->
-    F = fun() ->
-        mnesia:index_read(mission, pending, #mission.status)
-    end,
-    case mnesia:transaction(F) of
-        {atomic, Results} -> {ok, Results};
-        {aborted, Reason} -> {error, Reason}
-    end.
+extract_context(#mission{context_tokens = undefined}) -> [];
+extract_context(#mission{context_tokens = Tokens}) -> Tokens.
