@@ -50,6 +50,9 @@ do_http_call(Endpoint, Payload, Timeout, IsStream, Callback) ->
     Port = maps:get(port, URI, 80),
     Path = maps:get(path, URI),
 
+    StartTime = erlang:system_time(microsecond),
+    telemetry:execute([don_erleone, ollama, request, start], #{time => StartTime}, #{host => Host, path => Path}),
+
     case gun:open(Host, Port, #{connect_timeout => 5000, protocols => [http]}) of
         {ok, ConnPid} ->
             try gun:await_up(ConnPid, 5000) of
@@ -57,15 +60,25 @@ do_http_call(Endpoint, Payload, Timeout, IsStream, Callback) ->
                     Headers = [{<<"content-type">>, <<"application/json">>}],
                     StreamRef = gun:post(ConnPid, Path, Headers, Payload),
                     Result = stream_loop(ConnPid, StreamRef, Timeout, IsStream, <<>>, <<>>, Callback),
+                    
+                    Duration = erlang:system_time(microsecond) - StartTime,
+                    Success = case Result of {ok, _} -> true; _ -> false end,
+                    telemetry:execute([don_erleone, ollama, request, stop], #{duration => Duration}, #{host => Host, success => Success}),
+                    
                     gun:close(ConnPid),
                     Result;
                 {error, Reason} ->
+                    telemetry:execute([don_erleone, ollama, request, error], #{}, #{host => Host, reason => await_up_failed, error => Reason}),
                     gun:close(ConnPid),
                     {error, {connection_failed, Reason}}
-            catch`
-                _:_ -> gun:close(ConnPid), {error, connection_timeout}
+            catch
+                _:E -> 
+                    telemetry:execute([don_erleone, ollama, request, error], #{}, #{host => Host, reason => await_up_exception, error => E}),
+                    gun:close(ConnPid), 
+                    {error, connection_timeout}
             end;
         {error, Reason} ->
+            telemetry:execute([don_erleone, ollama, request, error], #{}, #{host => Host, reason => open_failed, error => Reason}),
             {error, {open_failed, Reason}}
     end.
 
@@ -76,24 +89,40 @@ do_http_call(Endpoint, Payload, Timeout, IsStream, Callback) ->
 stream_loop(Conn, Ref, Tmo, IsStream, Buffer, Acc, CB) ->
     receive
         %% Response Metadata
-        {gun_response, Conn, Ref, nofin, 200, _} ->
+        {gun_response, Conn, Ref, nofin, 200, _Headers} ->
+            logger:debug(#{event => ollama_stream_started, ref => Ref}),
             stream_loop(Conn, Ref, Tmo, IsStream, Buffer, Acc, CB);
         
-        {gun_response, Conn, Ref, _, Status, _} when Status >= 400 ->
+        {gun_response, Conn, Ref, _, Status, Headers} when Status >= 400 ->
+            logger:error(#{
+                event => ollama_http_error,
+                status => Status,
+                headers => Headers,
+                ref => Ref
+            }),
             {error, {http_status, Status}};
 
         %% Data Ingress
         {gun_data, Conn, Ref, nofin, Data} ->
+            telemetry:execute([don_erleone, ollama, stream, chunk], #{size => byte_size(Data)}, #{ref => Ref}),
             handle_ongoing_data(Conn, Ref, Tmo, IsStream, <<Buffer/binary, Data/binary>>, Acc, CB);
 
         {gun_data, Conn, Ref, fin, Data} ->
+            logger:debug(#{event => ollama_stream_finished, ref => Ref, last_chunk_size => byte_size(Data)}),
             handle_final_data(<<Buffer/binary, Data/binary>>, IsStream, Acc, CB);
 
         %% Error states
-        {gun_error, Conn, Ref, Reason} -> {error, {stream_err, Reason}};
-        {gun_error, Conn, Reason}      -> {error, {gun_err, Reason}};
-        {gun_down, Conn, _, _, _, _}   -> {error, connection_closed}
+        {gun_error, Conn, Ref, Reason} -> 
+            logger:error(#{event => ollama_gun_stream_error, ref => Ref, reason => Reason}),
+            {error, {stream_err, Reason}};
+        {gun_error, Conn, Reason} -> 
+            logger:error(#{event => ollama_gun_conn_error, reason => Reason}),
+            {error, {gun_err, Reason}};
+        {gun_down, Conn, _, _, _, _} -> 
+            logger:warning(#{event => ollama_conn_down, ref => Ref}),
+            {error, connection_closed}
     after Tmo ->
+        logger:error(#{event => ollama_request_timeout, ref => Ref}),
         {error, timeout}
     end.
 

@@ -17,6 +17,7 @@
 %% ------------------------------------------------------------------------
 
 init_db() ->
+    logger:info(#{event => db_init_start}),
     _ = mnesia:start(),
     TableDef = [
         {attributes, record_info(fields, mission)},
@@ -27,9 +28,14 @@ init_db() ->
 
 ensure_table(Name, Def) ->
     case mnesia:create_table(Name, Def) of
-        {atomic, ok} -> mnesia:wait_for_tables([Name], 5000);
-        {aborted, {already_exists, Name}} -> mnesia:wait_for_tables([Name], 5000);
-        {aborted, Reason} -> {error, Reason}
+        {atomic, ok} -> 
+            logger:info(#{event => table_created, table => Name}),
+            mnesia:wait_for_tables([Name], 5000);
+        {aborted, {already_exists, Name}} -> 
+            mnesia:wait_for_tables([Name], 5000);
+        {aborted, Reason} -> 
+            logger:error(#{event => table_creation_failed, table => Name, error => Reason}),
+            {error, Reason}
     end.
 
 %% ------------------------------------------------------------------------
@@ -97,14 +103,18 @@ modify_mission(Id, UpdateFun) ->
 execute_write(Record, Id) ->
     case mnesia:transaction(fun() -> mnesia:write(Record) end) of
         {atomic, ok} -> {ok, Id};
-        {aborted, Reason} -> {error, Reason}
+        {aborted, Reason} -> 
+            logger:error(#{event => db_write_failed, mission_id => Id, error => Reason}),
+            {error, Reason}
     end.
 
 execute_read(Id) ->
     case mnesia:transaction(fun() -> mnesia:read(mission, Id) end) of
         {atomic, [Result]} -> {ok, Result};
         {atomic, []} -> {error, not_found};
-        {aborted, Reason} -> {error, Reason}
+        {aborted, Reason} -> 
+            logger:error(#{event => db_read_failed, mission_id => Id, error => Reason}),
+            {error, Reason}
     end.
 
 %% ------------------------------------------------------------------------

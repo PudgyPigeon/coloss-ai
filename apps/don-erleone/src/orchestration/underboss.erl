@@ -20,6 +20,7 @@ dispatch_mission(MissionSpec) ->
 %% ------------------------------------------------------------------------
 
 init(SubConfig) ->
+    logger:info(#{event => supervisor_init, module => ?MODULE}),
     SupFlags = #{
         strategy  => one_for_one,
         intensity => 10,
@@ -37,16 +38,23 @@ init(SubConfig) ->
 %% ------------------------------------------------------------------------
 
 async_transaction(MissionSpec) ->
+    MissionId = maps:get(id, MissionSpec),
+    StartTime = erlang:system_time(microsecond),
+    telemetry:execute([don_erleone, worker, execute, start], #{time => StartTime}, #{mission_id => MissionId, pool => caporegime_pool}),
     try
-        poolboy:transaction(caporegime_pool, fun(Worker) ->
+        Result = poolboy:transaction(caporegime_pool, fun(Worker) ->
             %% SRE FIX: Changed 'infinity' to 300,000ms (5 minutes). 
             %% If the LLM or Haskell MCP completely hangs, we recover the worker slot.
             gen_server:call(Worker, {execute_mission, MissionSpec}, 300000)
-        end)
+        end),
+        telemetry:execute([don_erleone, worker, execute, stop], #{duration => erlang:system_time(microsecond) - StartTime}, #{mission_id => MissionId, pool => caporegime_pool}),
+        Result
     catch
         exit:{timeout, _} ->
+            telemetry:execute([don_erleone, worker, execute, exception], #{duration => erlang:system_time(microsecond) - StartTime}, #{mission_id => MissionId, reason => pool_timeout}),
             handle_error(MissionSpec, exit, pool_exhausted_or_hung, []);
         Class:Reason:Stack ->
+            telemetry:execute([don_erleone, worker, execute, exception], #{duration => erlang:system_time(microsecond) - StartTime}, #{mission_id => MissionId, class => Class, reason => Reason}),
             handle_error(MissionSpec, Class, Reason, Stack)
     end.
 
@@ -65,8 +73,13 @@ pool_config() ->
 
 handle_error(MissionSpec, Class, Reason, Stack) ->
     MissionId = maps:get(id, MissionSpec),
-    logger:error("Underboss: Mission ~p execution failed (~p:~p)~nStack: ~p", 
-                 [MissionId, Class, Reason, Stack]),
+    logger:error(#{
+        event => mission_failed,
+        mission_id => MissionId,
+        class => Class,
+        reason => Reason,
+        stack => Stack
+    }),
     
     mission_store:fail_mission(MissionId, {execution_error, Reason}),
     notify_caller(MissionSpec, Reason).

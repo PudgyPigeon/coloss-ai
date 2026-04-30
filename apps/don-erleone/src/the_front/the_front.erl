@@ -25,9 +25,10 @@ init([]) ->
 
     case start_http_listener() of
         {ok, _Pid} ->
-            logger:info("The Front (HTTP) is operational on port 8080"),
+            logger:info(#{event => http_frontend_operational, port => 8080}),
             {ok, #{}};
         {error, Reason} ->
+            logger:error(#{event => http_frontend_failed, reason => Reason}),
             {stop, {cowboy_start_failed, Reason}}
     end.
 

@@ -13,11 +13,18 @@
 %% ------------------------------------------------------------------------
 
 init(Req0, State) ->
+    StartTime = erlang:system_time(microsecond),
+    Path = cowboy_req:path(Req0),
+    telemetry:execute([don_erleone, http, request, start], #{time => StartTime}, #{path => Path}),
+    
     {ok, Body, Req} = cowboy_req:read_body(Req0),
     case parse_incoming_request(Body, Req) of
         {ok, Params} ->
-            handle_mission_request(Params, Req, State);
+            Result = handle_mission_request(Params, Req, State),
+            telemetry:execute([don_erleone, http, request, stop], #{duration => erlang:system_time(microsecond) - StartTime}, #{path => Path, success => true}),
+            Result;
         {error, Reason} ->
+            telemetry:execute([don_erleone, http, request, stop], #{duration => erlang:system_time(microsecond) - StartTime}, #{path => Path, success => false, error => Reason}),
             handle_bad_request(Reason, Req, State)
     end.
 
@@ -53,10 +60,11 @@ wait_for_sync_result(Req, Tag, SessionId, State) ->
             send_json_reply(200, openai_formatter:build_success(Content, Mid), Req, State);
         
         {Tag, {error, Reason}} ->
-            logger:error("Mission failed for ~s: ~p", [SessionId, Reason]),
+            logger:error(#{event => sync_mission_failed, session_id => SessionId, error => Reason}),
             send_json_reply(500, openai_formatter:build_error(Reason), Req, State)
             
     after 120000 ->
+        logger:error(#{event => sync_mission_timeout, session_id => SessionId}),
         send_json_reply(504, openai_formatter:build_error(timeout), Req, State)
     end.
 
@@ -113,7 +121,7 @@ send_json_reply(Status, Body, Req, State) ->
     {ok, cowboy_req:reply(Status, ?JSON_TYPE, Body, Req), State}.
 
 handle_bad_request(ErrorInfo, Req, State) ->
-    logger:error("Bad Request: ~p", [ErrorInfo]),
+    logger:error(#{event => bad_request, error => ErrorInfo}),
     Body = openai_formatter:build_error(<<"Invalid JSON payload">>),
     send_json_reply(400, Body, Req, State).
 

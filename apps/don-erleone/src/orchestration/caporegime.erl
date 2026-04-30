@@ -13,31 +13,71 @@ start_link([SubConfig]) ->
     gen_server:start_link(?MODULE, SubConfig, []).
 
 init(SubConfig) -> 
-    %% SRE FIX: Open the persistent HTTP connection to the Haskell MCP once.
-    URL = SubConfig#sub_config.mcp_url,
-    #{host := H, port := P} = uri_string:parse(URL),
-    Host = if is_binary(H) -> binary_to_list(H); true -> H end,
-    
-    case gun:open(Host, P, #{connect_timeout => 5000, protocols => [http]}) of
-        {ok, Conn} ->
-            %% Wait for the protocol to be up before marking the worker as ready
-            {ok, _} = gun:await_up(Conn, 5000),
-            %% Store BOTH the config and the warm connection in the state
-            State = #{config => SubConfig, conn => Conn},
-            {ok, State};
-        {error, Reason} ->
-            %% If the worker can't connect on boot, it crashes and Poolboy/Underboss restarts it.
-            {stop, {mcp_connection_failed, Reason}}
-    end.
+    %% Lazy Connection: don't block boot on MCP availability.
+    %% This prevents Poolboy from crashing the whole app on localhost.
+    {ok, #{config => SubConfig, conn => undefined}}.
 
 handle_call({execute_mission, Spec}, _From, State) ->
     Mid = maps:get(id, Spec),
+    logger:info(#{event => caporegime_mission_start, mission_id => Mid}),
     mission_store:update_status(Mid, in_progress),
     
-    Result = run_mission(Spec, State),
+    case ensure_conn(State) of
+        {ok, NewState} ->
+            Result = run_mission(Spec, NewState),
+            finalize_mission(Spec, Result),
+            {reply, Result, NewState};
+        {error, Reason} ->
+            logger:error(#{event => mcp_connection_failed, mission_id => Mid, error => Reason}),
+            Result = {error, {infrastructure_down, Reason}},
+            finalize_mission(Spec, Result),
+            {reply, Result, State}
+    end.
+
+%% ------------------------------------------------------------------------
+%% Self-Healing Connection Manager
+%% ------------------------------------------------------------------------
+
+ensure_conn(#{conn := Conn} = State) when is_pid(Conn) ->
+    case is_process_alive(Conn) of
+        true -> 
+            {ok, State};
+        false -> 
+            %% The Gun process died silently. Reconnect.
+            logger:warning(#{event => caporegime_socket_dead, action => reconnecting}),
+            reconnect(State)
+    end;
+ensure_conn(State) ->
+    reconnect(State).
+
+reconnect(#{config := Conf} = State) ->
+    %% 1. Sanity check: Ensure we don't leave zombie Gun processes behind
+    case maps:get(conn, State, undefined) of
+        OldConn when is_pid(OldConn) -> gun:close(OldConn);
+        _ -> ok
+    end,
+
+    %% 2. Dial the MCP
+    URL = Conf#sub_config.mcp_url,
+    #{host := H, port := P} = uri_string:parse(URL),
+    Host = if is_binary(H) -> binary_to_list(H); true -> H end,
     
-    finalize_mission(Spec, Result),
-    {reply, Result, State}.
+    logger:info(#{event => caporegime_connecting_mcp, host => Host, port => P}),
+    
+    %% We use a tight connect timeout so the worker doesn't hang the pool forever
+    case gun:open(Host, P, #{connect_timeout => 5000, protocols => [http]}) of
+        {ok, NewConn} ->
+            case gun:await_up(NewConn, 5000) of
+                {ok, _} ->
+                    logger:info(#{event => caporegime_connected, host => Host}),
+                    {ok, State#{conn => NewConn}};
+                {error, Reason} ->
+                    gun:close(NewConn),
+                    {error, {await_up_failed, Reason}}
+            end;
+        {error, Reason} ->
+            {error, {gun_open_failed, Reason}}
+    end.
 
 %% ------------------------------------------------------------------------
 %% Mission Orchestration
@@ -46,7 +86,7 @@ handle_call({execute_mission, Spec}, _From, State) ->
 run_mission(Spec, State) ->
     case discover_tools(State) of
         {ok, Tools} ->
-            #{config := Conf} = State,
+            logger:debug(#{event => tools_discovered, count => length(Tools)}),
             Prompt = agent_brain:build_sub_prompt(
                 maps:get(intent, Spec), 
                 maps:get(prompt, Spec), 
@@ -54,6 +94,7 @@ run_mission(Spec, State) ->
             ),
             recursive_loop(Prompt, [], Tools, State, 0);
         {error, Reason} -> 
+            logger:error(#{event => tool_discovery_failed, error => Reason}),
             %% SRE GUARD: Hard stop if we can't discover tools. Do not send an empty toolbox to Ollama.
             {error, {infrastructure_down, Reason}}
     end.
@@ -72,10 +113,12 @@ recursive_loop(_P, _Ctx, _T, #{config := #sub_config{max_steps = Max}}, Step) wh
     {error, recursion_limit};
 
 recursive_loop(Prompt, Context, Tools, State, Step) ->
+    logger:debug(#{event => caporegime_loop_step, step => Step}),
     case call_ollama(Prompt, Context, Tools, State) of
         {ok, Msg} ->
             process_llm_response(Msg, Context, Tools, State, Step);
         Error -> 
+            logger:error(#{event => caporegime_ollama_failed, error => Error}),
             Error
     end.
 
@@ -90,18 +133,25 @@ call_ollama(Prompt, Context, Tools, #{config := Conf}) ->
 
 process_llm_response(Msg, Context, Tools, State, Step) ->
     case agent_brain:analyze_loop_step(Msg) of
-        {continue, _Calls} when Step >= 2 -> 
-            {ok, #{response => <<"Maximum discovery depth reached. Summarizing gathered cluster data from history.">>}};
-
+        %% Execute the tool calls, but don't increment the Step. 
+        %% If Step is maxed out, force the LLM to summarize next round.
         {continue, Calls} ->
             Results = [execute_tool(C, State) || C <- Calls],
             NextCtx = Context ++ [Msg#{<<"role">> => <<"assistant">>} | Results],
-            recursive_loop(<<>>, NextCtx, Tools, State, Step + 1);
+            
+            %% SRE FIX: Check max depth AFTER executing the tool, not before.
+            #{config := #sub_config{max_steps = Max}} = State,
+            if 
+                Step >= Max -> 
+                    %% Force termination instead of looping again
+                    {ok, #{response => <<"I have executed the final tool call. Please check the logs." >>}};
+                true ->
+                    recursive_loop(<<>>, NextCtx, Tools, State, Step + 1)
+            end;
 
         {stop, Response} -> 
             {ok, #{response => Response}}
     end.
-
 %% ------------------------------------------------------------------------
 %% Tool Execution
 %% ------------------------------------------------------------------------
@@ -176,7 +226,10 @@ safe_notify({Pid, Tag}, Msg) ->
 
 terminate(_Reason, #{conn := Conn}) ->
     %% SRE FIX: Ensure we cleanly close the socket if the worker is killed
-    gun:close(Conn),
+    case Conn of
+        Pid when is_pid(Pid) -> gun:close(Pid);
+        _ -> ok
+    end,
     ok.
 
 handle_cast(_, S) -> {noreply, S}.

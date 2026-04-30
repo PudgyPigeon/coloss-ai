@@ -11,6 +11,7 @@ init(Config) -> {ok, Config}.
 
 %% --- Orchestration ---
 handle_call({consult, SessionId, Prompt, CowboyFrom}, _From, Config) ->
+    logger:debug(#{event => worker_consult_start, session_id => SessionId}),
     try 
         %% Side Effect: Read from DB
         Context = mission_store:get_latest_context(SessionId),
@@ -19,44 +20,56 @@ handle_call({consult, SessionId, Prompt, CowboyFrom}, _From, Config) ->
         case call_ollama(Prompt, Context, Config) of
             {ok, Data} ->
                 Raw = extract_raw(Data),
-                process_decision(SessionId, Prompt, Raw, Context, CowboyFrom);
+                %% SRE FIX: Pass Config into the decision router
+                process_decision(SessionId, Prompt, Raw, Context, CowboyFrom, Config);
             {error, R} -> 
+                logger:error(#{event => ollama_call_failed, session_id => SessionId, error => R}),
                 notify_error(CowboyFrom, R),
                 {reply, {error, R}, Config}
         end
     catch
-        _:E -> 
+        _:E:Stack -> 
+            logger:error(#{event => worker_crash, session_id => SessionId, error => E, stack => Stack}),
             notify_error(CowboyFrom, worker_fault),
             {reply, {error, E}, Config}
     end.
 
 %% --- Side-Effect Handlers ---
 
-process_decision(Sid, Prompt, Raw, PrevCtx, From) ->
+%% SRE FIX: Added Config as the 6th argument
+process_decision(Sid, Prompt, Raw, PrevCtx, From, Config) ->
     %% Call the Pure Logic
     Decision = mission_brain:analyze_llm_response(Raw, PrevCtx),
     NewCtx = mission_brain:build_new_context(Prompt, Raw, PrevCtx),
 
     case Decision of
         {delegate, Intent, Args, Msg} ->
+            logger:info(#{event => decision_delegate, session_id => Sid, intent => Intent}),
             case mission_store:post_mission(Sid, Intent, Prompt, NewCtx) of
                 {ok, Mid} ->
                     safe_send(From, {chunk, <<"\n", Msg/binary, "\n">>, Mid}),
                     underboss:dispatch_mission(#{id => Mid, intent => Intent, args => Args, prompt => Prompt, cowboy_from => From}),
-                    {reply, ok, []};
+                    %% SRE FIX: Return the intact Config instead of []
+                    {reply, ok, Config};
                 {error, Reason} ->
+                    logger:error(#{event => mission_store_failed, session_id => Sid, error => Reason}),
                     notify_error(From, Reason),
-                    {reply, {error, Reason}, []}
+                    %% SRE FIX: Return the intact Config instead of []
+                    {reply, {error, Reason}, Config}
             end;
 
         {direct, Msg} ->
+            logger:info(#{event => decision_direct, session_id => Sid}),
             case mission_store:post_mission(Sid, <<"direct">>, Prompt, NewCtx) of
                 {ok, Mid} ->
                     safe_send(From, {done, Msg, Mid}),
-                    {reply, ok, []};
+                    %% SRE FIX: Return the intact Config instead of []
+                    {reply, ok, Config};
                 {error, Reason} ->
+                    logger:error(#{event => mission_store_failed, session_id => Sid, error => Reason}),
                     notify_error(From, Reason),
-                    {reply, {error, Reason}, []}
+                    %% SRE FIX: Return the intact Config instead of []
+                    {reply, {error, Reason}, Config}
             end
     end.
 
@@ -68,7 +81,7 @@ call_ollama(P, Ctx, #config{model=M, stream=S, system_prompt=SP, ollama_url=URL,
 safe_send({Pid, Tag}, Msg) -> 
     case is_process_alive(Pid) of
         true  -> Pid ! {Tag, Msg};
-        false -> logger:warning("Target Cowboy PID ~p dead, dropped message.", [Pid])
+        false -> logger:warning(#{event => cowboy_dead_drop, target_pid => Pid, message => Msg})
     end.
 
 notify_error({Pid, Tag}, R) -> 

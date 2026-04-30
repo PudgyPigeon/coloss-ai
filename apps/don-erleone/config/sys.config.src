@@ -7,6 +7,16 @@
       {sub_timeout, ${SUB_TIMEOUT}}
    ]},
    {mnesia, [{dir, "data/mnesia"}]},
-   {kernel, [{logger_level, info}]},
+   {kernel, [
+       {logger_level, info},
+       {logger, [
+           {handler, default, logger_std_h, #{
+               formatter => {logger_formatter, #{
+                   single_line => true,
+                   template => [time, " [", level, "] ", msg, "\n"]
+               }}
+           }}
+       ]}
+   ]},
    {sasl, [{sasl_error_logger, false}]}
 ].

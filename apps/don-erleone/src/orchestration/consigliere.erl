@@ -20,21 +20,33 @@ handle_mission(SessionId, Prompt, CowboyFrom) ->
 %% ------------------------------------------------------------------------
 
 async_pool_consult(SessionId, Prompt, CowboyFrom) ->
+    StartTime = erlang:system_time(microsecond),
+    telemetry:execute([don_erleone, worker, execute, start], #{time => StartTime}, #{session_id => SessionId, pool => consigliere_pool}),
     try
         %% The Transaction: Request a worker from the pool
-        poolboy:transaction(consigliere_pool, fun(Worker) ->
+        Result = poolboy:transaction(consigliere_pool, fun(Worker) ->
             %% infinity is used because Ollama generation can take 60s+
             %% and we want the pool queue to manage the pressure.
             gen_server:call(Worker, {consult, SessionId, Prompt, CowboyFrom}, infinity)
-        end)
+        end),
+        telemetry:execute([don_erleone, worker, execute, stop], #{duration => erlang:system_time(microsecond) - StartTime}, #{session_id => SessionId, pool => consigliere_pool}),
+        Result
     catch
         %% Handle Pool Overload (e.g., if poolboy:transaction times out waiting for a worker)
         exit:{timeout, _} ->
+            telemetry:execute([don_erleone, worker, execute, exception], #{duration => erlang:system_time(microsecond) - StartTime}, #{session_id => SessionId, reason => pool_timeout}),
             notify_client_of_failure(CowboyFrom, pool_overloaded);
         
         %% Handle Logic/Network crashes
         Class:Error:Stack ->
-            logger:error("Consigliere dispatch failed: ~p:~p~nStack: ~p", [Class, Error, Stack]),
+            telemetry:execute([don_erleone, worker, execute, exception], #{duration => erlang:system_time(microsecond) - StartTime}, #{session_id => SessionId, class => Class, reason => Error}),
+            logger:error(#{
+                event => consigliere_dispatch_failed,
+                session_id => SessionId,
+                class => Class,
+                error => Error,
+                stack => Stack
+            }),
             notify_client_of_failure(CowboyFrom, internal_service_error)
     end.
 
@@ -48,5 +60,9 @@ notify_client_of_failure({Pid, Tag}, Reason) ->
         true -> 
             Pid ! {Tag, {error, Reason}};
         false -> 
-            logger:warning("Cowboy handler dead. Could not deliver error: ~p", [Reason])
+            logger:warning(#{
+                event => callback_delivery_failed,
+                reason => Reason,
+                target_pid => Pid
+            })
     end.

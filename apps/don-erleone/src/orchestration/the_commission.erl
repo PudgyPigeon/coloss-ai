@@ -15,6 +15,7 @@ start_link(Config, SubConfig) ->
 %% ------------------------------------------------------------------------
 
 init([Config, SubConfig]) ->
+    logger:info(#{event => supervisor_init, module => ?MODULE}),
     %% Strategy: one_for_one
     %% Decoupling the Strategy workers from the Execution managers.
     %% We increase intensity to handle transient network/LLM flakiness.

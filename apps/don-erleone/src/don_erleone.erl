@@ -16,10 +16,14 @@ start_link() ->
     supervisor:start_link({local, ?MODULE}, ?MODULE, []).
 
 init(_Args) ->
+    %% 0. Setup Telemetry
+    don_erleone_telemetry:setup(),
+    telemetry:execute([don_erleone, startup], #{}, #{}),
+
     %% 1. Initialize Mnesia Database
     case mission_store:init_db() of
         ok -> ok;
-        {error, DbErr} -> logger:error("Database init failed: ~p", [DbErr])
+        {error, DbErr} -> logger:error(#{event => db_init_failed, error => DbErr})
     end,
 
     %% 2. Define Supervision Strategy
