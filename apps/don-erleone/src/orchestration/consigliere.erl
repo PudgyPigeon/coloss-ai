@@ -6,36 +6,47 @@
 -endif.
 
 %% ------------------------------------------------------------------------
-%% API
+%% API: The Dispatcher (Imperative Shell)
 %% ------------------------------------------------------------------------
 
-%% Dispatches a mission to the consigliere pool asynchronously.
 %% CowboyFrom = {Pid, Tag} — the cowboy handler blocks on receive for this Tag.
 handle_mission(SessionId, Prompt, CowboyFrom) ->
+    %% We use proc_lib:spawn to ensure the process is integrated into OTP error logging
     proc_lib:spawn(fun() -> async_pool_consult(SessionId, Prompt, CowboyFrom) end),
     ok.
 
 %% ------------------------------------------------------------------------
-%% Internal Helpers
+%% Internal Helpers: Orchestration & Error Handling
 %% ------------------------------------------------------------------------
 
 async_pool_consult(SessionId, Prompt, CowboyFrom) ->
     try
-        execute_transaction(SessionId, Prompt, CowboyFrom)
+        %% The Transaction: Request a worker from the pool
+        poolboy:transaction(consigliere_pool, fun(Worker) ->
+            %% infinity is used because Ollama generation can take 60s+
+            %% and we want the pool queue to manage the pressure.
+            gen_server:call(Worker, {consult, SessionId, Prompt, CowboyFrom}, infinity)
+        end)
     catch
+        %% Handle Pool Overload (e.g., if poolboy:transaction times out waiting for a worker)
+        exit:{timeout, _} ->
+            notify_client_of_failure(CowboyFrom, pool_overloaded);
+        
+        %% Handle Logic/Network crashes
         Class:Error:Stack ->
-            handle_dispatch_error(CowboyFrom, Class, Error, Stack)
+            logger:error("Consigliere dispatch failed: ~p:~p~nStack: ~p", [Class, Error, Stack]),
+            notify_client_of_failure(CowboyFrom, internal_service_error)
     end.
 
-execute_transaction(SessionId, Prompt, CowboyFrom) ->
-    poolboy:transaction(consigliere_pool, fun(Worker) ->
-        gen_server:call(Worker, {consult, SessionId, Prompt, CowboyFrom}, infinity)
-    end).
+%% ------------------------------------------------------------------------
+%% Client Notification (Ensures Cowboy never hangs)
+%% ------------------------------------------------------------------------
 
-handle_dispatch_error({Pid, Tag}, Class, Error, Stack) ->
-    %% 1. Log the failure
-    logger:error("Consigliere pool dispatch failed: ~p:~p~n~p", 
-                 [Class, Error, Stack]),
-    
-    %% 2. Unblock the cowboy handler so it doesn't hang
-    Pid ! {Tag, {error, {pool_dispatch_error, Error}}}.
+notify_client_of_failure({Pid, Tag}, Reason) ->
+    %% Only send if the Cowboy process is still alive to receive it
+    case is_process_alive(Pid) of
+        true -> 
+            Pid ! {Tag, {error, Reason}};
+        false -> 
+            logger:warning("Cowboy handler dead. Could not deliver error: ~p", [Reason])
+    end.

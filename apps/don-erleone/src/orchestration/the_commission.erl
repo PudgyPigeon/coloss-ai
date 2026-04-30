@@ -15,13 +15,13 @@ start_link(Config, SubConfig) ->
 %% ------------------------------------------------------------------------
 
 init([Config, SubConfig]) ->
-    %% Strategy: rest_for_one
-    %% If the Underboss (first child) dies, the Consigliere Pool (second child) 
-    %% is restarted automatically to ensure consistent state.
+    %% Strategy: one_for_one
+    %% Decoupling the Strategy workers from the Execution managers.
+    %% We increase intensity to handle transient network/LLM flakiness.
     SupFlags = #{
-        strategy  => rest_for_one,
-        intensity => 5,
-        period    => 10
+        strategy  => one_for_one, 
+        intensity => 10,
+        period    => 60
     },
 
     {ok, {SupFlags, child_specs(Config, SubConfig)}}.
@@ -32,7 +32,8 @@ init([Config, SubConfig]) ->
 
 child_specs(Config, SubConfig) ->
     [
-        %% 1. The Underboss (Hierarchy: Manager of Caporegimes)
+        %% 1. The Underboss (Fleet Manager for Caporegimes)
+        %% This handles the 'Shell' side of the Autonomous Loop.
         #{
             id      => underboss,
             start   => {underboss, start_link, [SubConfig]},
@@ -40,7 +41,8 @@ child_specs(Config, SubConfig) ->
             type    => supervisor
         },
 
-        %% 2. The Consigliere Pool (Hierarchy: Strategy Workers)
+        %% 2. The Consigliere Pool (Strategy Workers)
+        %% This handles the 'Shell' side of the LLM Strategy.
         poolboy:child_spec(consigliere_pool, pool_config(), [Config])
     ].
 
@@ -52,6 +54,7 @@ pool_config() ->
     [
         {name, {local, consigliere_pool}},
         {worker_module, consigliere_worker},
-        {size, 5},
-        {max_overflow, 10}
+        {size, 5},           %% Static workers always ready
+        {max_overflow, 15},  %% Expanded overflow for busy SRE shifts
+        {strategy, fifo}     %% Ensure we don't 'wear out' the first worker in the pool
     ].

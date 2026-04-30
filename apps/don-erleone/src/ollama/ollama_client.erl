@@ -28,10 +28,14 @@ generate_with_tools(Prompt, System, Context, Tools, Opts) ->
 %% ------------------------------------------------------------------------
 
 execute_request(Prompt, System, Context, Tools, Opts, Callback) ->
-    #{url := URL, model := Model, timeout := Timeout} = Opts,
-    Stream = maps:get(stream, Opts, false),
+    %% SRE Fix: Using maps:get to avoid badmatch if Opts is not exactly a map 
+    %% or is missing keys.
+    URL     = maps:get(url, Opts),
+    Model   = maps:get(model, Opts),
+    Timeout = maps:get(timeout, Opts, 120000), %% Default to 120s
+    Stream  = maps:get(stream, Opts, false),
 
-    Payload = build_payload(Model, Prompt, Context, System, Stream, Tools),
+    Payload  = build_payload(Model, Prompt, Context, System, Stream, Tools),
     Endpoint = resolve_chat_endpoint(URL),
 
     do_http_call(Endpoint, Payload, Timeout, Stream, Callback).
@@ -41,7 +45,7 @@ execute_request(Prompt, System, Context, Tools, Opts, Callback) ->
 %% ------------------------------------------------------------------------
 
 do_http_call(Endpoint, Payload, Timeout, IsStream, Callback) ->
-    URI = uri_string:parse(Endpoint),
+    URI  = uri_string:parse(Endpoint),
     Host = maps:get(host, URI),
     Port = maps:get(port, URI, 80),
     Path = maps:get(path, URI),
@@ -123,7 +127,7 @@ finalize_json(Line, Acc, CB) ->
     try jsx:decode(Line, [return_maps]) of
         #{<<"message">> := Msg} -> process_ollama_msg(Msg, Acc, CB);
         #{<<"error">> := Err}   -> {error, {ollama_error, Err}};
-        _                      -> Acc
+        _                       -> Acc
     catch _:_ -> Acc end.
 
 process_ollama_msg(#{<<"content">> := C} = Msg, Acc, CB) ->

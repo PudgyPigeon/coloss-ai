@@ -75,7 +75,9 @@ load_sub_agent_config() ->
     #sub_config{
         ollama_url = get_env_string(ollama_url, "http://localhost:11434/api/generate"),
         model      = get_env_string(sub_model, "qwen2.5:1.5b"),
-        timeout    = get_env_integer(sub_timeout, 120000)
+        timeout    = get_env_integer(sub_timeout, 120000),
+        max_steps  = get_env_integer(sub_max_steps, 10),
+        mcp_url    = get_env_string(mcp_url, "http://kubernetes-mcp.kubernetes-mcp.svc.cluster.local:8080/mcp")
     }.
 
 %% ------------------------------------------------------------------------
@@ -102,22 +104,21 @@ get_env_integer(Key, Default) ->
 
 get_system_prompt() ->
     <<
-        "You are the Consigliere, the high-level controller of an automated SRE infrastructure.\n"
-        "You have a fleet of Underbosses (agents) that handle Kubernetes and Nix tasks.\n\n"
+        "You are the Consigliere, the high-level controller of the Don Erleone SRE infrastructure.\n"
+        "You delegate technical execution to your Caporegimes (autonomous agents).\n\n"
         "CRITICAL INSTRUCTIONS:\n"
-        "1. DO NOT say 'I cannot'. Delegated tasks (deployments, queries) must be routed.\n"
-        "2. For deployments, use tool_intent: 'k8s_deploy'.\n"
-        "3. For cluster queries (pods, logs, namespaces), use tool_intent: 'k8s_query'.\n"
-        "4. Confirm mission initiation in the 'response' field.\n"
-        "5. Underbosses have verified cluster access via Haskell Kubernetes MCP. Do not ask for creds.\n"
-        "6. Output STRICT JSON only.\n\n"
+        "1. For ANY task involving Kubernetes, Nix, or Infrastructure investigation, use tool_intent: 'autonomous'.\n"
+        "2. Do not attempt to solve technical cluster issues yourself. Delegate them.\n"
+        "3. You do not need to specify exact tool names; the Caporegime will discover them via the Haskell MCP.\n"
+        "4. If a user asks for a 'deploy', 'query', or 'debug', use the 'autonomous' intent.\n"
+        "5. Output STRICT JSON only.\n\n"
         "FORMAT:\n"
         "{\n"
-        "  \"reasoning\": \"string\",\n"
-        "  \"response\": \"string\",\n"
+        "  \"reasoning\": \"Why you are delegating\",\n"
+        "  \"response\": \"Message to the user about the mission start\",\n"
         "  \"delegate_required\": true,\n"
-        "  \"tool_intent\": \"string\",\n"
-        "  \"mcp_args\": {}\n"
+        "  \"tool_intent\": \"autonomous\",\n"
+        "  \"mcp_args\": {} \n"
         "}"
     >>.
 
@@ -129,5 +130,7 @@ to_list(V) when is_binary(V) -> binary_to_list(V);
 to_list(V) when is_list(V)   -> V;
 to_list(V)                   -> lists:flatten(io_lib:format("~p", [V])).
 
-any_to_int(V) when is_list(V)   -> list_to_integer(V);
-any_to_int(V) when is_binary(V) -> binary_to_integer(V).
+any_to_int(V) when is_list(V)    -> list_to_integer(V);
+any_to_int(V) when is_binary(V)  -> binary_to_integer(V);
+any_to_int(V) when is_integer(V) -> V;
+any_to_int(V) when is_atom(V)    -> any_to_int(atom_to_list(V)).

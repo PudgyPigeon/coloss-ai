@@ -6,227 +6,156 @@
 -export([start_link/1, init/1, handle_call/3, handle_cast/2, handle_info/2]).
 
 %% ------------------------------------------------------------------------
-%% Lifecycle
+%% Lifecycle & Poolboy Setup
 %% ------------------------------------------------------------------------
 
-start_link([SubConfig]) ->
+start_link([SubConfig]) -> 
     gen_server:start_link(?MODULE, SubConfig, []).
 
-init(SubConfig) ->
+init(SubConfig) -> 
     {ok, SubConfig}.
 
 %% ------------------------------------------------------------------------
-%% API / Callbacks
+%% Mission Control
 %% ------------------------------------------------------------------------
 
-handle_call({execute_mission, MissionSpec}, _From, SubConfig) ->
-    #{id := MissionId, intent := Intent} = MissionSpec,
-    logger:info("Caporegime ~p starting mission ~p: ~s", [self(), MissionId, Intent]),
-
-    mission_store:update_status(MissionId, in_progress),
-
-    %% Pipeline: Execute -> Persist Outcome -> Notify Caller
-    Result = run_execution_safely(MissionSpec, SubConfig),
-    persist_mission_outcome(MissionId, Result),
-    dispatch_notifications(MissionSpec, Result),
-
+handle_call({execute_mission, Spec}, _From, SubConfig) ->
+    %% Update state in the global mission store
+    Mid = maps:get(id, Spec),
+    mission_store:update_status(Mid, in_progress),
+    
+    %% Start the heavy lifting
+    Result = execute_autonomous_loop(Spec, SubConfig),
+    
+    %% Cleanup and Notify
+    finalize_mission(Spec, Result),
     {reply, Result, SubConfig}.
 
-%% ------------------------------------------------------------------------
-%% Execution Pipeline
-%% ------------------------------------------------------------------------
-
-run_execution_safely(MissionSpec, SubConfig) ->
-    try
-        route_to_handler(MissionSpec, SubConfig)
-    catch
-        C:E:Stk ->
-            logger:error("Caporegime crash: ~p:~p~n~p", [C, E, Stk]),
-            {error, {mission_crash, E}}
-    end.
-
-%% Intent Routing logic
-route_to_handler(#{intent := <<"k8s_deploy">>, prompt := P, args := A}, Conf) ->
-    execute_ai_mission(build_sub_prompt(<<"k8s_deploy">>, P, A), Conf);
-
-route_to_handler(#{intent := <<"check_mcp">>, prompt := P, args := A}, Conf) ->
-    URL = maps:get(<<"endpoint">>, A, get_mcp_endpoint()),
-    case maps:get(<<"endpoint">>, A, undefined) of
-        undefined -> execute_ai_mission(build_sub_prompt(<<"check_mcp">>, P, A), Conf);
-        _         -> call_mcp_raw_endpoint(URL, A, Conf)
-    end;
-
-route_to_handler(#{intent := <<"k8s_logs">>, args := A}, Conf) ->
-    URL = maps:get(<<"endpoint">>, A, get_mcp_endpoint()),
-    call_mcp_raw_endpoint(URL, A, Conf);
-
-route_to_handler(#{intent := Intent, prompt := P, args := A}, Conf) ->
-    execute_ai_mission(build_sub_prompt(Intent, P, A), Conf).
-
-%% ------------------------------------------------------------------------
-%% AI & Dynamic Tool Discovery
-%% ------------------------------------------------------------------------
-
-execute_ai_mission(SystemPrompt, SubConfig) ->
-    %% Discovery: Query the Haskell MCP server for available tools
-    case fetch_mcp_tools(SubConfig) of
-        {ok, Tools} ->
-            recursive_tool_loop(SystemPrompt, [], Tools, SubConfig, 0);
-        {error, Reason} ->
-            logger:error("Tool discovery failed: ~p", [Reason]),
-            {error, {discovery_error, Reason}}
-    end.
-
-recursive_tool_loop(_P, _Ctx, _T, _Conf, 5) ->
-    {error, recursion_limit_reached};
-recursive_tool_loop(Prompt, Context, Tools, Conf, Depth) ->
-    case call_ollama_with_tools(Prompt, Context, Tools, Conf) of
-        {ok, #{<<"tool_calls">> := Calls} = Msg} ->
-            NextContext = process_tool_calls(Calls, Context, Msg, Conf),
-            recursive_tool_loop(<<>>, NextContext, Tools, Conf, Depth + 1);
-        
-        {ok, Msg} ->
-            {ok, #{model => Conf#sub_config.model, response => extract_msg_content(Msg)}};
-        
-        Error -> Error
-    end.
-
-process_tool_calls(Calls, PrevContext, AsstMsg, Conf) ->
-    CleanAsstMsg = AsstMsg#{<<"role">> => <<"assistant">>},
-    ToolResults = [execute_single_tool(C, Conf) || C <- Calls],
-    PrevContext ++ [CleanAsstMsg | ToolResults].
-
-execute_single_tool(#{<<"function">> := #{<<"name">> := N, <<"arguments">> := A}}, Conf) ->
-    logger:info("Caporegime calling tool: ~s", [N]),
-    Result = dispatch_mcp_rpc(<<"tools/call">>, #{<<"name">> => N, <<"arguments">> => A}, Conf),
-    #{<<"role">> => <<"tool">>, <<"content">> => Result}.
-
-%% ------------------------------------------------------------------------
-%% MCP Protocol Bridge (JSON-RPC)
-%% ------------------------------------------------------------------------
-
-fetch_mcp_tools(Conf) ->
-    case dispatch_mcp_rpc(<<"tools/list">>, #{}, Conf) of
-        {ok, #{<<"tools">> := Tools}} -> {ok, Tools};
-        {error, _} = Err -> Err;
-        Other -> 
-            try
-                #{<<"result">> := #{<<"tools">> := T}} = jsx:decode(to_bin(Other), [return_maps]),
-                {ok, T}
-            catch _:_ -> {error, discovery_decode_failed} end
-    end.
-
-dispatch_mcp_rpc(Method, Params, Conf) ->
-    Url = get_mcp_endpoint(),
-    Payload = jsx:encode(#{
-        <<"jsonrpc">> => <<"2.0">>,
-        <<"id">>      => Method,
-        <<"method">>  => Method,
-        <<"params">>  => Params
-    }),
-    case perform_http_post(Url, Payload, Conf) of
-        {ok, #{response := Body}} -> 
-            case Method of
-                <<"tools/list">> -> decode_mcp_result(Body);
-                _ -> Body
+execute_autonomous_loop(Spec, Conf) ->
+    %% 1. Discovery Phase: See what the Haskell MCP can actually do
+    case mcp_call(<<"tools/list">>, #{}, Conf) of
+        {ok, Body} ->
+            case agent_brain:decode_tools(Body) of
+                {ok, Tools} ->
+                    %% 2. Prompt Construction
+                    SystemPrompt = agent_brain:build_sub_prompt(
+                        maps:get(intent, Spec), 
+                        maps:get(prompt, Spec), 
+                        maps:get(args, Spec)
+                    ),
+                    %% 3. Enter Reasoning Loop
+                    recursive_loop(SystemPrompt, [], Tools, Conf, 0);
+                {error, R} -> 
+                    {error, {discovery_decode_failed, R}}
             end;
-        {error, _} = Err -> Err
-    end.
-
-call_mcp_raw_endpoint(URL, Args, Conf) ->
-    Params = maps:without([<<"endpoint">>], Args),
-    case perform_http_post(URL, jsx:encode(Params), Conf) of
-        {ok, #{response := Body}} -> 
-            {ok, #{model => <<"raw_mcp">>, response => Body}};
-        {error, Reason} -> 
-            {error, Reason}
-    end.
-
-perform_http_post(URL, Payload, #sub_config{timeout = T}) ->
-    Headers = [{"MCP-Protocol-Version", "2025-06-18"}],
-    HttpOpts = [{timeout, T}, {connect_timeout, 5000}],
-    case httpc:request(post, {binary_to_list(URL), Headers, "application/json", Payload}, HttpOpts, []) of
-        {ok, {{_, 200, _}, _, Body}} -> {ok, #{response => iolist_to_binary(Body)}};
-        {ok, {{_, Status, _}, _, _}} -> {error, {http_status, Status}};
-        {error, Reason}              -> {error, Reason}
+        Error -> 
+            Error
     end.
 
 %% ------------------------------------------------------------------------
-%% Prompt Construction
+%% The Autonomous reasoning loop
 %% ------------------------------------------------------------------------
 
-build_sub_prompt(<<"k8s_deploy">>, Prompt, Args) ->
-    iolist_to_binary([
-        <<"You are a Kubernetes deployment sub-agent.\n">>,
-        <<"Generate a valid YAML manifest for the following request.\n">>,
-        <<"Request: ">>, Prompt, <<"\n">>,
-        <<"Arguments: ">>, jsx:encode(Args), <<"\n">>,
-        <<"Respond with JSON: {\"manifest\": \"<yaml>\", \"status\": \"ready\"}">>
-    ]);
+%% Guard: Circuit breaker prevents the "Don" from spinning forever
+recursive_loop(_P, _Ctx, _T, #sub_config{max_steps = Max}, Step) when Step >= Max -> 
+    {error, recursion_limit};
 
-build_sub_prompt(<<"check_mcp">>, Prompt, _Args) ->
-    iolist_to_binary([
-        <<"You are an infrastructure status sub-agent.\n">>,
-        <<"Assess the following request and provide a status report.\n">>,
-        <<"Request: ">>, Prompt, <<"\n">>,
-        <<"Respond with JSON: {\"status\": \"...\", \"details\": \"...\"}">>
-    ]);
+recursive_loop(Prompt, Context, Tools, Conf, Step) ->
+    %% SRE FIX: Convert Record to Map for the generic shared client
+    OllamaOpts = #{
+        url => Conf#sub_config.ollama_url,
+        model => Conf#sub_config.model,
+        timeout => Conf#sub_config.timeout,
+        stream => false
+    },
 
-build_sub_prompt(Intent, Prompt, Args) ->
-    iolist_to_binary([
-        <<"You are an autonomous Kubernetes sub-agent.\n">>,
-        <<"Task intent: ">>, Intent, <<"\n">>,
-        <<"Original User Request: ">>, Prompt, <<"\n">>,
-        <<"Consigliere Args: ">>, jsx:encode(Args), <<"\n">>,
-        <<"You have access to Kubernetes tools via MCP. ">>,
-        <<"Fetch information from the cluster to fulfill the request. ">>,
-        <<"Do not guess state. Summarize the final result for the user once done.">>
-    ]).
-
-%% ------------------------------------------------------------------------
-%% State & Notifications
-%% ------------------------------------------------------------------------
-
-persist_mission_outcome(Id, {ok, Data})    -> mission_store:complete_mission(Id, Data);
-persist_mission_outcome(Id, {error, Rsn}) -> mission_store:fail_mission(Id, Rsn).
-
-dispatch_notifications(#{cowboy_from := {Pid, Tag}, id := Mid}, {ok, Result}) ->
-    Content = extract_msg_content(Result),
-    Formatted = <<"\n\n---\n**Execution Result:**\n", (to_bin(Content))/binary>>,
-    Pid ! {Tag, {chunk, Formatted, Mid}},
-    Pid ! {Tag, {done, <<>>, Mid}};
-dispatch_notifications(#{cowboy_from := {Pid, Tag}}, {error, Reason}) ->
-    Pid ! {Tag, {error, Reason}};
-dispatch_notifications(_, _) -> ok.
-
-%% ------------------------------------------------------------------------
-%% Helpers
-%% ------------------------------------------------------------------------
-
-get_mcp_endpoint() ->
-    case os:getenv("MCP_URL") of
-        Value when is_list(Value) -> list_to_binary(Value);
-        false ->
-            application:get_env(don_erleone, mcp_url, 
-                <<"http://kubernetes-mcp.kubernetes-mcp.svc.cluster.local:8080/mcp">>)
+    case ollama_client:generate_with_tools(Prompt, <<>>, Context, Tools, OllamaOpts) of
+        {ok, Msg} ->
+            case agent_brain:analyze_loop_step(Msg) of
+                {continue, Calls} ->
+                    %% Execute requested tool calls from the LLM
+                    Results = [run_tool(C, Conf) || C <- Calls],
+                    
+                    %% Update the Assistant history and Tool results
+                    NextCtx = Context ++ [Msg#{<<"role">> => <<"assistant">>} | Results],
+                    
+                    %% Recurse with an empty prompt (LLM continues from history)
+                    recursive_loop(<<>>, NextCtx, Tools, Conf, Step + 1);
+                {stop, Response} -> 
+                    {ok, #{response => Response}}
+            end;
+        {error, {http_status, 404}} -> 
+            {error, model_not_found};
+        Error -> 
+            Error
     end.
 
-decode_mcp_result(Body) ->
-    try
-        #{<<"result">> := Result} = jsx:decode(Body, [return_maps]),
-        Result
-    catch _:_ -> {error, invalid_json_rpc} end.
+run_tool(#{<<"function">> := #{<<"name">> := N, <<"arguments">> := A}}, Conf) ->
+    case mcp_call(N, A, Conf) of
+        {ok, Res} -> 
+            #{<<"role">> => <<"tool">>, <<"content">> => Res};
+        Error -> 
+            %% Capture errors as tool content so the LLM can see the failure
+            #{<<"role">> => <<"tool">>, <<"content">> => iolist_to_binary(io_lib:format("~p", [Error]))}
+    end.
 
-extract_msg_content(#{response := R}) -> R;
-extract_msg_content(#{<<"content">> := C}) -> C;
-extract_msg_content(C) when is_binary(C) -> C;
-extract_msg_content(_) -> <<"No content returned.">>.
+%% ------------------------------------------------------------------------
+%% MCP Bridge (Haskell Server Transport)
+%% ------------------------------------------------------------------------
 
-to_bin(B) when is_binary(B) -> B;
-to_bin(Any) -> iolist_to_binary(io_lib:format("~p", [Any])).
+mcp_call(Method, Params, Conf) ->
+    {Headers, Payload} = agent_brain:prepare_mcp_request(Method, Params),
+    gun_request(Conf#sub_config.mcp_url, Headers, Payload, Conf#sub_config.timeout).
 
-call_ollama_with_tools(P, Ctx, Tools, #sub_config{ollama_url = U, model = M, timeout = T}) ->
-    ollama_client:generate_with_tools(P, <<>>, Ctx, Tools, #{url => U, model => M, timeout => T, stream => false}).
+gun_request(URL, Headers, Payload, Timeout) ->
+    #{host := H, port := P, path := Path} = uri_string:parse(URL),
+    HostList = if is_binary(H) -> binary_to_list(H); true -> H end,
+    
+    %% SRE FIX: Guard gun:open to avoid crashing in the 'after' block if Conn is unbound
+    case gun:open(HostList, P, #{connect_timeout => 5000, protocols => [http]}) of
+        {ok, Conn} ->
+            try
+                case gun:await_up(Conn, 5000) of
+                    {ok, _} ->
+                        Ref = gun:post(Conn, Path, Headers, Payload),
+                        case gun:await(Conn, Ref, Timeout) of
+                            {response, nofin, 200, _} -> 
+                                gun:await_body(Conn, Ref, Timeout);
+                            {response, _, Status, _} -> 
+                                {error, {http_status, Status}};
+                            _ -> 
+                                {error, timeout}
+                        end;
+                    {error, Reason} -> 
+                        {error, {connect_failed, Reason}}
+                end
+            after
+                gun:close(Conn)
+            end;
+        {error, Reason} ->
+            {error, {transport_failed, Reason}}
+    end.
+
+%% ------------------------------------------------------------------------
+%% Output & Notifications
+%% ------------------------------------------------------------------------
+
+finalize_mission(#{id := Mid, cowboy_from := From}, {ok, Data}) ->
+    mission_store:complete_mission(Mid, Data),
+    safe_notify(From, {done, maps:get(response, Data), Mid});
+finalize_mission(#{id := Mid, cowboy_from := From}, {error, R}) ->
+    mission_store:fail_mission(Mid, R),
+    safe_notify(From, {error, R}).
+
+safe_notify({Pid, Tag}, Msg) -> 
+    case is_process_alive(Pid) of
+        true -> Pid ! {Tag, Msg};
+        false -> ok
+    end.
+
+%% ------------------------------------------------------------------------
+%% Unused Callbacks
+%% ------------------------------------------------------------------------
 
 handle_cast(_, S) -> {noreply, S}.
 handle_info(_, S) -> {noreply, S}.

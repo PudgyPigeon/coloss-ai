@@ -2,9 +2,9 @@
    {don_erleone, [
       {ollama_model, "${OLLAMA_MODEL}"},
       {ollama_url, "${OLLAMA_URL}"},
-      {timeout, "${TIMEOUT}"},
+      {timeout, ${TIMEOUT}},
       {sub_model, "${SUB_MODEL}"},
-      {sub_timeout, "${SUB_TIMEOUT}"}
+      {sub_timeout, ${SUB_TIMEOUT}}
    ]},
    {mnesia, [{dir, "data/mnesia"}]},
    {kernel, [{logger_level, info}]},
