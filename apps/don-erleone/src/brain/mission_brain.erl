@@ -2,12 +2,14 @@
 -export([analyze_llm_response/2, parse_json_payload/1, build_new_context/3]).
 
 %% @doc Determines if the LLM output requires delegation or a direct response.
-analyze_llm_response(RawBin, PrevContext) ->
+analyze_llm_response(RawBin, _PrevContext) ->
     Parsed = parse_json_payload(RawBin),
     
     %% Extract fields with default fallbacks
-    Response  = maps:get(<<"response">>, Parsed, RawBin),
-    Delegate  = maps:get(<<"delegate_required">>, Parsed, false),
+    ResponseRaw = maps:get(<<"response">>, Parsed, RawBin),
+    Response  = to_bin(ResponseRaw),
+    DelegateRaw = maps:get(<<"delegate_required">>, Parsed, false),
+    Delegate  = (DelegateRaw =:= true) orelse (DelegateRaw =:= <<"true">>) orelse (DelegateRaw =:= "true"),
     Intent    = maps:get(<<"tool_intent">>, Parsed, <<"autonomous">>),
     Args      = maps:get(<<"mcp_args">>, Parsed, #{}),
 

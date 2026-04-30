@@ -1,6 +1,5 @@
 -module(agent_brain).
 
-%% Internal Protocol Constants
 -define(MCP_VERSION, <<"2025-06-18">>).
 -define(JSONRPC_VER, <<"2.0">>).
 
@@ -12,71 +11,72 @@
 ]).
 
 %% =============================================================================
-%% MCP Protocol Abstraction
+%% MCP Protocol
 %% =============================================================================
 
-%% @doc Generates the headers required for the MCP HTTP transport.
-mcp_headers() ->
-    [
-        {<<"Content-Type">>, <<"application/json">>},
-        {<<"Accept">>, <<"application/json">>},
-        {<<"Mcp-Protocol-Version">>, ?MCP_VERSION}
-    ].
-
-%% @doc Constructs the map for a JSON-RPC 2.0 request.
-json_rpc_map(Method, Params, Id) ->
-    #{
-        <<"jsonrpc">> => ?JSONRPC_VER,
-        <<"id">> => Id,
-        <<"method">> => to_bin(Method),
-        <<"params">> => if Params == undefined -> #{}; true -> Params end
-    }.
-
-%% @doc High-level logic: Returns {Headers, JSON_Payload} for the Shell (Caporegime).
 prepare_mcp_request(Method, Params) ->
-    Headers = mcp_headers(),
-    %% We use a fixed ID 1 for simple request/response, Shell can extend if needed.
-    PayloadMap = json_rpc_map(Method, Params, 1),
-    {Headers, jsx:encode(PayloadMap)}.
+    Headers = [
+        {<<"Content-Type">>, <<"application/json">>},
+        {<<"Mcp-Protocol-Version">>, ?MCP_VERSION} %% Ensure this is set
+    ],
+    
+    %% Standard MCP tools/call structure
+    Payload = #{
+        <<"jsonrpc">> => ?JSONRPC_VER,
+        <<"id">> => 1,
+        <<"method">> => to_bin(Method),
+        <<"params">> => Params
+    },
+    {Headers, jsx:encode(Payload)}.
 
 %% =============================================================================
-%% Agent Logic & Decoding
+%% The "One-Stop" Logic
 %% =============================================================================
 
-%% @doc Pure logic to determine if we should call more tools or finish based on LLM response.
-analyze_loop_step(OllamaMsg) ->
-    case OllamaMsg of
-        #{<<"tool_calls">> := Calls} when is_list(Calls) -> {continue, Calls};
-        #{<<"content">> := C} -> {stop, C};
-        _ -> {stop, <<"Malformed LLM response structure.">>}
+analyze_loop_step(Msg) ->
+    %% SRE Priority: If the model gave us an answer, STOP, even if it hallucinations a tool call.
+    HasContent = maps:get(<<"content stream">>, Msg, maps:get(<<"content">>, Msg, <<>>)),
+    HasTools = maps:get(<<"tool_calls">>, Msg, []),
+
+    case {HasContent, HasTools} of
+        {C, _} when is_binary(C), byte_size(C) > 20 -> 
+            %% If we have substantial content, assume it's the answer.
+            {stop, C};
+        {_, Calls} when is_list(Calls), length(Calls) > 0 -> 
+            {continue, Calls};
+        {C, _} when is_binary(C), byte_size(C) > 0 -> 
+            {stop, C};
+        _ -> 
+            {stop, <<"Mission complete or no further action required.">>}
     end.
 
-%% @doc Decodes and validates the tools list returned by the Haskell MCP Underboss.
 decode_tools(Body) ->
     try
         Decoded = jsx:decode(to_bin(Body), [return_maps]),
         case Decoded of
             #{<<"result">> := #{<<"tools">> := T}} -> {ok, T};
             #{<<"tools">> := T} -> {ok, T};
-            _ -> 
-                logger:error("MCP Result structure mismatch: ~p", [Decoded]),
-                {error, structure_mismatch}
+            _ -> {error, {bad_structure, Decoded}}
         end
     catch 
         _:_ -> {error, json_invalid}
     end.
 
-%% @doc Prepares a sub-prompt for the autonomous agent loop.
-build_sub_prompt(Intent, Goal, ArgsMap) ->
-    ArgsJson = try jsx:encode(ArgsMap) catch _:_ -> <<"{ }">> end,
-    << "Agent Intent: ", Intent/binary, 
-       "\nGoal: ", Goal/binary, 
-       "\nParams: ", ArgsJson/binary >>.
+build_sub_prompt(Intent, Goal, Tools) ->
+    ValidNames = [maps:get(<<"name">>, T) || T <- Tools],
+    NamesBin = list_to_binary(lists:join(<<", ">>, ValidNames)),
 
-%% =============================================================================
-%% Helpers
-%% =============================================================================
+    << "SYSTEM: You are a Senior AI Infrastructure Engineer.
+STRICT PROTOCOL: You may ONLY use these tools: ", NamesBin/binary, "
 
-%% @doc Ensures input is a binary.
+MISSION RULES:
+1. One-Stop Completion: If the goal is to list something, call the tool ONCE.
+2. Immediate Exit: Once you see the tool output in the history, you MUST provide the final answer.
+3. No Scope Creep: Do not check pods or deployments unless explicitly asked.
+4. Stop Token: You must finish your response with a final summary.
+
+GOAL: ", Goal/binary, "
+INTENT: ", Intent/binary >>.
+
 to_bin(B) when is_binary(B) -> B;
-to_bin(L) -> iolist_to_binary(io_lib:format("~s", [L])).
+to_bin(V) -> iolist_to_binary(io_lib:format("~p", [V])).

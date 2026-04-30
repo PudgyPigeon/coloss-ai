@@ -50,20 +50,23 @@ do_http_call(Endpoint, Payload, Timeout, IsStream, Callback) ->
     Port = maps:get(port, URI, 80),
     Path = maps:get(path, URI),
 
-    {ok, ConnPid} = gun:open(Host, Port, #{connect_timeout => 5000, protocols => [http]}),
-
-    try gun:await_up(ConnPid, 5000) of
-        {ok, _} ->
-            Headers = [{<<"content-type">>, <<"application/json">>}],
-            StreamRef = gun:post(ConnPid, Path, Headers, Payload),
-            Result = stream_loop(ConnPid, StreamRef, Timeout, IsStream, <<>>, <<>>, Callback),
-            gun:close(ConnPid),
-            Result;
+    case gun:open(Host, Port, #{connect_timeout => 5000, protocols => [http]}) of
+        {ok, ConnPid} ->
+            try gun:await_up(ConnPid, 5000) of
+                {ok, _} ->
+                    Headers = [{<<"content-type">>, <<"application/json">>}],
+                    StreamRef = gun:post(ConnPid, Path, Headers, Payload),
+                    Result = stream_loop(ConnPid, StreamRef, Timeout, IsStream, <<>>, <<>>, Callback),
+                    gun:close(ConnPid),
+                    Result;
+                {error, Reason} ->
+                    gun:close(ConnPid),
+                    {error, {connection_failed, Reason}}
+            catch`
+                _:_ -> gun:close(ConnPid), {error, connection_timeout}
+            end;
         {error, Reason} ->
-            gun:close(ConnPid),
-            {error, {connection_failed, Reason}}
-    catch
-        _:_ -> gun:close(ConnPid), {error, connection_timeout}
+            {error, {open_failed, Reason}}
     end.
 
 %% ------------------------------------------------------------------------
@@ -141,12 +144,13 @@ process_ollama_msg(Msg, _Acc, _CB) ->
 %% ------------------------------------------------------------------------
 
 build_payload(Model, Prompt, Context, System, Stream, Tools) ->
-    Messages = [
-        #{<<"role">> => <<"system">>, <<"content">> => to_bin(System)},
-        #{<<"role">> => <<"user">>,   <<"content">> => to_bin(Prompt)}
-    ],
-    %% Insert context between system and user
-    FullMessages = insert_context(Messages, Context),
+    SysBin = to_bin(System),
+    SysMsgs = if SysBin =:= <<>> -> []; true -> [#{<<"role">> => <<"system">>, <<"content">> => SysBin}] end,
+    
+    PromptBin = to_bin(Prompt),
+    UserMsgs = if PromptBin =:= <<>> -> []; true -> [#{<<"role">> => <<"user">>, <<"content">> => PromptBin}] end,
+    
+    FullMessages = SysMsgs ++ Context ++ UserMsgs,
     
     Base = #{
         <<"model">>    => to_bin(Model),
@@ -158,8 +162,6 @@ build_payload(Model, Prompt, Context, System, Stream, Tools) ->
 resolve_chat_endpoint(URL) ->
     L = to_list(URL),
     lists:flatten(string:replace(L, "/api/generate", "/api/chat")).
-
-insert_context([Sys, User], Context) -> [Sys | Context] ++ [User].
 
 maybe_add_tools(Payload, []) -> Payload;
 maybe_add_tools(Payload, Tools) -> Payload#{<<"tools">> => Tools}.

@@ -19,5 +19,5 @@ persistence:
 
 config:
   ollamaModel: "qwen3.5:9b"
-  subModel: "qwen3.5:0.8b"
+  subModel: "qwen3.5:9b" #"qwen3.5:0.8b"
   mcpUrl: "http://kubernetes-mcp.kubernetes-mcp.svc.cluster.local:8080/mcp"

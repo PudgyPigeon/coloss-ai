@@ -39,15 +39,25 @@ process_decision(Sid, Prompt, Raw, PrevCtx, From) ->
 
     case Decision of
         {delegate, Intent, Args, Msg} ->
-            {ok, Mid} = mission_store:post_mission(Sid, Intent, Prompt, NewCtx),
-            safe_send(From, {chunk, <<"\n", Msg/binary, "\n">>, Mid}),
-            underboss:dispatch_mission(#{id => Mid, intent => Intent, args => Args, prompt => Prompt, cowboy_from => From}),
-            {reply, ok, []};
+            case mission_store:post_mission(Sid, Intent, Prompt, NewCtx) of
+                {ok, Mid} ->
+                    safe_send(From, {chunk, <<"\n", Msg/binary, "\n">>, Mid}),
+                    underboss:dispatch_mission(#{id => Mid, intent => Intent, args => Args, prompt => Prompt, cowboy_from => From}),
+                    {reply, ok, []};
+                {error, Reason} ->
+                    notify_error(From, Reason),
+                    {reply, {error, Reason}, []}
+            end;
 
         {direct, Msg} ->
-            {ok, Mid} = mission_store:post_mission(Sid, <<"direct">>, Prompt, NewCtx),
-            safe_send(From, {done, Msg, Mid}),
-            {reply, ok, []}
+            case mission_store:post_mission(Sid, <<"direct">>, Prompt, NewCtx) of
+                {ok, Mid} ->
+                    safe_send(From, {done, Msg, Mid}),
+                    {reply, ok, []};
+                {error, Reason} ->
+                    notify_error(From, Reason),
+                    {reply, {error, Reason}, []}
+            end
     end.
 
 %% --- Infrastructure Helpers ---
