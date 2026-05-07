@@ -9,121 +9,132 @@
 -endif.
 
 %% ------------------------------------------------------------------------
+%% API & Lifecycle
+%% ------------------------------------------------------------------------
 
 start_link() ->
     supervisor:start_link({local, ?MODULE}, ?MODULE, []).
 
 init(_Args) ->
-    ok = mission_store:init_db(),
+    %% 0. Setup Telemetry
+    don_erleone_telemetry:setup(),
+    telemetry:execute([don_erleone, startup], #{}, #{}),
 
-    Config = load_config(),
-    SubConfig = load_sub_config(),
+    %% 1. Initialize Mnesia Database
+    case mission_store:init_db() of
+        ok -> ok;
+        {error, DbErr} -> logger:error(#{event => db_init_failed, error => DbErr})
+    end,
 
+    %% 2. Define Supervision Strategy
     SupFlags = #{
-        strategy => one_for_one,
+        strategy  => one_for_one,
         intensity => 5,
-        period => 10
+        period    => 10
     },
 
-    ChildSpecs = [
+    %% 3. Load Configurations and Child Specs
+    {ok, {SupFlags, get_child_specs()}}.
+
+%% ------------------------------------------------------------------------
+%% Supervision Tree Definition
+%% ------------------------------------------------------------------------
+
+get_child_specs() ->
+    Config = load_main_config(),
+    SubConfig = load_sub_agent_config(),
+    
+    [
+        %% The HTTP Gateway
         #{
-            id => the_front,
-            start => {the_front, start_link, []},
+            id      => the_front,
+            start   => {the_front, start_link, []},
             restart => permanent,
-            type => worker
+            type    => worker
         },
+
+        %% The Orchestration Layer
         #{
-            id => the_commission,
-            start => {the_commission, start_link, [Config, SubConfig]},
+            id      => the_commission,
+            start   => {the_commission, start_link, [Config, SubConfig]},
             restart => permanent,
-            type => supervisor
+            type    => supervisor
         }
-    ],
-    {ok, {SupFlags, ChildSpecs}}.
+    ].
 
 %% ------------------------------------------------------------------------
-%% Config for the main consigliere (large model)
+%% Configuration Logic
 %% ------------------------------------------------------------------------
 
-load_config() ->
-    Model = get_env_string(ollama_model, "qwen2.5:7b"),
-    URL = get_env_string(ollama_url, "http://localhost:11434/api/generate"),
-    Timeout = get_env_integer(timeout, 3600000),
-
+load_main_config() ->
     #config{
-        ollama_url = URL,
-        model = Model,
-        timeout = Timeout,
-        stream = false,
+        ollama_url    = get_env_string(ollama_url, "http://localhost:11434/api/generate"),
+        model         = get_env_string(ollama_model, "qwen3.5:9b"),
+        timeout       = get_env_integer(timeout, 3600000),
+        stream        = false,
         system_prompt = get_system_prompt()
-    }.
+    } .
 
-%% ------------------------------------------------------------------------
-%% Config for subordinate agents (smaller/faster model)
-%% ------------------------------------------------------------------------
-
-load_sub_config() ->
-    Model = get_env_string(sub_model, "qwen2.5:1.5b"),
-    URL = get_env_string(ollama_url, "http://localhost:11434/api/generate"),
-    Timeout = get_env_integer(sub_timeout, 120000),
-
+load_sub_agent_config() ->
     #sub_config{
-        ollama_url = URL,
-        model = Model,
-        timeout = Timeout
+        ollama_url = get_env_string(ollama_url, "http://localhost:11434/api/generate"),
+        model      = get_env_string(sub_model, "qwen3.5:9b"),
+        timeout    = get_env_integer(sub_timeout, 120000),
+        max_steps  = get_env_integer(sub_max_steps, 10),
+        mcp_url    = get_env_string(mcp_url, "http://kubernetes-mcp.kubernetes-mcp.svc.cluster.local:8080/mcp")
     }.
 
 %% ------------------------------------------------------------------------
-%% Environment helpers — safe, no regex hacks
+%% Configuration Helpers
 %% ------------------------------------------------------------------------
 
 get_env_string(Key, Default) ->
     case application:get_env(don_erleone, Key) of
-        {ok, Val} when is_list(Val) -> Val;
-        {ok, Val} when is_binary(Val) -> binary_to_list(Val);
-        _ -> Default
+        {ok, Val} -> to_list(Val);
+        _         -> Default
     end.
 
 get_env_integer(Key, Default) ->
     case application:get_env(don_erleone, Key) of
         {ok, Val} when is_integer(Val) -> Val;
-        {ok, Val} when is_list(Val) ->
-            try
-                list_to_integer(Val)
-            catch
-                _:_ -> Default
-            end;
-        {ok, Val} when is_binary(Val) ->
-            try
-                binary_to_integer(Val)
-            catch
-                _:_ -> Default
-            end;
-        _ ->
-            Default
+        {ok, Val} -> 
+            try any_to_int(Val) catch _:_ -> Default end;
+        _ -> Default
     end.
 
 %% ------------------------------------------------------------------------
-%% System prompt for the consigliere brain
+%% System Prompt (The Consigliere's Identity)
 %% ------------------------------------------------------------------------
 
 get_system_prompt() ->
     <<
-        "You are the Consigliere, the high-level controller of an automated SRE infrastructure. \n"
-        "      You have a fleet of Underbosses (agents) that handle Kubernetes and Nix tasks.\n"
-        "      \n"
-        "      CRITICAL INSTRUCTIONS:\n"
-        "      1. When a user asks for a deployment (like nginx), you DO NOT say 'I cannot'. \n"
-        "      2. Instead, you MUST set 'delegate_required': true and 'tool_intent': 'k8s_deploy'.\n"
-        "      3. Your 'response' field should be a confirmation to the user that you are initiating the mission.\n"
-        "      4. If a user is requesting information or answers that you believe you can answer without delegating, do so.\n"
-        "      \n"
-        "      OUTPUT FORMAT (STRICT JSON ONLY):\n"
-        "      {\n"
-        "        \"reasoning\": \"internal logic\",\n"
-        "        \"response\": \"message to user\",\n"
-        "        \"delegate_required\": true,\n"
-        "        \"tool_intent\": \"intent_name\",\n"
-        "        \"mcp_args\": {}\n"
-        "      }"
+        "You are the Consigliere, the high-level controller of the Don Erleone SRE infrastructure.\n"
+        "You delegate technical execution to your Caporegimes (autonomous agents).\n\n"
+        "CRITICAL INSTRUCTIONS:\n"
+        "1. For ANY task involving Kubernetes, Nix, or Infrastructure investigation, use tool_intent: 'autonomous'.\n"
+        "2. Do not attempt to solve technical cluster issues yourself. Delegate them.\n"
+        "3. You do not need to specify exact tool names; the Caporegime will discover them via the Haskell MCP.\n"
+        "4. If a user asks for a 'deploy', 'query', or 'debug', use the 'autonomous' intent.\n"
+        "5. Output STRICT JSON only.\n\n"
+        "FORMAT:\n"
+        "{\n"
+        "  \"reasoning\": \"Why you are delegating\",\n"
+        "  \"response\": \"Message to the user about the mission start\",\n"
+        "  \"delegate_required\": true,\n"
+        "  \"tool_intent\": \"autonomous\",\n"
+        "  \"mcp_args\": {} \n"
+        "}"
     >>.
+
+%% ------------------------------------------------------------------------
+%% Normalization Helpers
+%% ------------------------------------------------------------------------
+
+to_list(V) when is_binary(V) -> binary_to_list(V);
+to_list(V) when is_list(V)   -> V;
+to_list(V)                   -> lists:flatten(io_lib:format("~p", [V])).
+
+any_to_int(V) when is_list(V)    -> list_to_integer(V);
+any_to_int(V) when is_binary(V)  -> binary_to_integer(V);
+any_to_int(V) when is_integer(V) -> V;
+any_to_int(V) when is_atom(V)    -> any_to_int(atom_to_list(V)).

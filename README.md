@@ -118,3 +118,8 @@ https://github.com/NVIDIA/gpu-operator/issues/662
 
 # For models -> Look at Opus distill for smaller B models that replicate Claude Opus
 https://huggingface.co/Jackrong/collections
+
+
+
+
+http://don-erleone.don-erleone.svc.cluster.local:8080/v1

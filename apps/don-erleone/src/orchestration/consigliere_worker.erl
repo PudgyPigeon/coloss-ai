@@ -5,147 +5,94 @@
 
 -export([start_link/1, init/1, handle_call/3, handle_cast/2, handle_info/2]).
 
--ifdef(TEST).
--compile(export_all).
--endif.
+%% --- Lifecycle ---
+start_link([Config]) -> gen_server:start_link(?MODULE, Config, []).
+init(Config) -> {ok, Config}.
 
-%% Poolboy passes arguments as a list; we unwrap it here.
-start_link([Config]) ->
-    gen_server:start_link(?MODULE, Config, []).
-
-init(Config) ->
-    {ok, Config}.
-
-%% The caller From is the cowboy handler's {Pid, Tag}, NOT the gen_server caller.
-%% We manually reply to the cowboy process and return {reply, ok} to release
-%% the pool worker back to poolboy.
-handle_call({consult, SessionId, Prompt, CowboyFrom}, _PoolFrom, Config) ->
-    %% do_consult now handles sending the messages to Cowboy directly
-    case do_consult(SessionId, Prompt, Config, CowboyFrom) of
-        ok -> 
-            {reply, ok, Config};
-        {error, Reason} -> 
-            {CowboyPid, CowboyTag} = CowboyFrom,
-            CowboyPid ! {CowboyTag, {error, Reason}},
-            {reply, {error, Reason}, Config}
-    end.
-
-%% --- Internal: Parse Ollama response and decide routing ---
-
-do_consult(SessionId, Prompt, Config, CowboyFrom) ->
-    try
-        %% Filter out legacy integer tokens to ensure compatibility with new chat history
-        PrevContext0 = mission_store:get_latest_context(SessionId),
-        PrevContext = [M || M <- PrevContext0, is_map(M)],
-        case call_ollama(Prompt, PrevContext, Config) of
-            {ok, OllamaData} ->
-                process_and_route(SessionId, OllamaData, Prompt, PrevContext, CowboyFrom);
-            {error, Reason} ->
-                {error, Reason}
+%% --- Orchestration ---
+handle_call({consult, SessionId, Prompt, CowboyFrom}, _From, Config) ->
+    logger:debug(#{event => worker_consult_start, session_id => SessionId}),
+    try 
+        %% Side Effect: Read from DB
+        Context = mission_store:get_latest_context(SessionId),
+        
+        %% Side Effect: Network I/O
+        case call_ollama(Prompt, Context, Config) of
+            {ok, Data} ->
+                Raw = extract_raw(Data),
+                %% SRE FIX: Pass Config into the decision router
+                process_decision(SessionId, Prompt, Raw, Context, CowboyFrom, Config);
+            {error, R} -> 
+                logger:error(#{event => ollama_call_failed, session_id => SessionId, error => R}),
+                notify_error(CowboyFrom, R),
+                {reply, {error, R}, Config}
         end
     catch
-        Class:Error:Stack ->
-            logger:error("Worker crash: ~p:~p~n~p", [Class, Error, Stack]),
-            {error, {worker_crash, Error}}
+        _:E:Stack -> 
+            logger:error(#{event => worker_crash, session_id => SessionId, error => E, stack => Stack}),
+            notify_error(CowboyFrom, worker_fault),
+            {reply, {error, E}, Config}
     end.
 
-process_and_route(SessionId, OllamaData, Prompt, PrevContext, CowboyFrom) ->
-    {MissionData, RawContent} = extract_mission_data(OllamaData),
-    IsDelegated = maps:get(<<"delegate_required">>, MissionData),
-    
-    UserMsg = #{<<"role">> => <<"user">>, <<"content">> => to_bin(Prompt)},
-    AsstMsg = #{<<"role">> => <<"assistant">>, <<"content">> => RawContent},
-    NewContext = PrevContext ++ [UserMsg, AsstMsg],
-    
-    MissionDataWithCtx = MissionData#{<<"context">> => NewContext},
-    route_mission(SessionId, IsDelegated, MissionDataWithCtx, Prompt, CowboyFrom).
+%% --- Side-Effect Handlers ---
 
-to_bin(Data) when is_binary(Data) -> Data;
-to_bin(Data) when is_list(Data) -> list_to_binary(Data);
-to_bin(Data) -> iolist_to_binary(io_lib:format("~p", [Data])).
+%% SRE FIX: Added Config as the 6th argument
+process_decision(Sid, Prompt, Raw, PrevCtx, From, Config) ->
+    %% Call the Pure Logic
+    Decision = mission_brain:analyze_llm_response(Raw, PrevCtx),
+    NewCtx = mission_brain:build_new_context(Prompt, Raw, PrevCtx),
 
-route_mission(SessionId, true, MissionData, Prompt, CowboyFrom) ->
-    handle_delegated_mission(SessionId, MissionData, Prompt, CowboyFrom);
-route_mission(SessionId, false, MissionData, Prompt, CowboyFrom) ->
-    handle_direct_answer(SessionId, MissionData, Prompt, CowboyFrom).
+    case Decision of
+        {delegate, Intent, Args, Msg} ->
+            logger:info(#{event => decision_delegate, session_id => Sid, intent => Intent}),
+            case mission_store:post_mission(Sid, Intent, Prompt, NewCtx) of
+                {ok, Mid} ->
+                    safe_send(From, {chunk, <<"\n", Msg/binary, "\n">>, Mid}),
+                    underboss:dispatch_mission(#{id => Mid, intent => Intent, args => Args, prompt => Prompt, cowboy_from => From}),
+                    %% SRE FIX: Return the intact Config instead of []
+                    {reply, ok, Config};
+                {error, Reason} ->
+                    logger:error(#{event => mission_store_failed, session_id => Sid, error => Reason}),
+                    notify_error(From, Reason),
+                    %% SRE FIX: Return the intact Config instead of []
+                    {reply, {error, Reason}, Config}
+            end;
 
-handle_delegated_mission(SessionId, MissionData, Prompt, CowboyFrom) ->
-    #{
-        <<"tool_intent">> := Intent,
-        <<"context">> := NewContext,
-        <<"response">> := Response,
-        <<"mcp_args">> := Args
-    } = MissionData,
-    {ok, Id} = mission_store:post_mission(SessionId, Intent, Prompt, NewContext),
+        {direct, Msg} ->
+            logger:info(#{event => decision_direct, session_id => Sid}),
+            case mission_store:post_mission(Sid, <<"direct">>, Prompt, NewCtx) of
+                {ok, Mid} ->
+                    safe_send(From, {done, Msg, Mid}),
+                    %% SRE FIX: Return the intact Config instead of []
+                    {reply, ok, Config};
+                {error, Reason} ->
+                    logger:error(#{event => mission_store_failed, session_id => Sid, error => Reason}),
+                    notify_error(From, Reason),
+                    %% SRE FIX: Return the intact Config instead of []
+                    {reply, {error, Reason}, Config}
+            end
+    end.
 
-    logger:info("Worker ~p delegated mission ~p (intent=~s)", [self(), Id, Intent]),
+%% --- Infrastructure Helpers ---
 
-    %% 1. Send the Consigliere's acknowledgment to the user as a CHUNK
-    %% (e.g., "I am delegating this to the Kubernetes agent...")
-    {CowboyPid, CowboyTag} = CowboyFrom,
-    CowboyPid ! {CowboyTag, {chunk, Response, Id}},
+call_ollama(P, Ctx, #config{model=M, stream=S, system_prompt=SP, ollama_url=URL, timeout=T}) ->
+    ollama_client:generate(P, SP, Ctx, #{url => URL, model => M, timeout => T, stream => S}).
 
-    %% 2. Dispatch to the Underboss (who will eventually send the 'done' message)
-    MissionSpec = build_mission_spec(Id, SessionId, Intent, Args, Prompt, CowboyFrom),
-    underboss:dispatch_mission(MissionSpec),
-    
-    ok. %% We return ok, the worker is done.
+safe_send({Pid, Tag}, Msg) -> 
+    case is_process_alive(Pid) of
+        true  -> Pid ! {Tag, Msg};
+        false -> logger:warning(#{event => cowboy_dead_drop, target_pid => Pid, message => Msg})
+    end.
 
-handle_direct_answer(SessionId, MissionData, Prompt, CowboyFrom) ->
-    #{<<"context">> := NewContext, <<"response">> := Response} = MissionData,
-    {ok, Id} = mission_store:post_mission(SessionId, <<"direct_answer">>, Prompt, NewContext),
-    
-    %% The Consigliere has the final answer, so we send the DONE message.
-    {CowboyPid, CowboyTag} = CowboyFrom,
-    CowboyPid ! {CowboyTag, {done, Response, Id}},
-    
-    ok. %% Return ok, worker is done.
-build_mission_spec(Id, SessionId, Intent, Args, Prompt, CowboyFrom) ->
-    #{
-        id => Id,
-        session_id => SessionId,
-        intent => Intent,
-        args => Args,
-        prompt => Prompt,
-        cowboy_from => CowboyFrom
-    }.
+notify_error({Pid, Tag}, R) -> 
+    case is_process_alive(Pid) of
+        true  -> Pid ! {Tag, {error, R}};
+        false -> ok
+    end.
 
-extract_mission_data(FinalText) when is_binary(FinalText) ->
-    %% LLMs sometimes wrap JSON in markdown blocks. We provide both 
-    %% the raw text and a stripped version to our JSON finder to be safe.
-    StrippedText = string:replace(string:replace(FinalText, <<"```json\n">>, <<>>), <<"```">>, <<>>),
-    
-    RawOptions = [FinalText, StrippedText],
-    ActualData = find_json_payload(RawOptions),
-    
-    {#{
-        <<"response">> => maps:get(<<"response">>, ActualData, <<"Acknowledged.">>),
-        <<"delegate_required">> => maps:get(<<"delegate_required">>, ActualData, false),
-        <<"tool_intent">> => maps:get(<<"tool_intent">>, ActualData, <<"unknown">>),
-        <<"mcp_args">> => maps:get(<<"mcp_args">>, ActualData, #{})
-    }, FinalText}.
+extract_raw(#{<<"content">> := C}) -> C;
+extract_raw(C) when is_binary(C) -> C;
+extract_raw(_) -> <<"error">>.
 
-%% --- Internal: Extract JSON from Ollama's various response fields ---
-
-find_json_payload([Bin | T]) when is_binary(Bin), Bin =/= <<>> ->
-    try
-        jsx:decode(Bin, [return_maps])
-    catch
-        _:_ -> find_json_payload(T)
-    end;
-find_json_payload([_ | T]) ->
-    find_json_payload(T);
-find_json_payload([]) ->
-    #{}.
-
-%% --- Internal: HTTP call to Ollama ---
-
-call_ollama(Prompt, PrevContext, #config{
-    model = M, stream = S, system_prompt = SP, ollama_url = URL, timeout = T
-}) ->
-    Opts = #{url => URL, model => M, timeout => T, stream => S},
-    ollama_client:generate(Prompt, SP, PrevContext, Opts).
-
-%% Standard callbacks
-handle_cast(_Msg, State) -> {noreply, State}.
-handle_info(_Msg, State) -> {noreply, State}.
+handle_cast(_, S) -> {noreply, S}.
+handle_info(_, S) -> {noreply, S}.

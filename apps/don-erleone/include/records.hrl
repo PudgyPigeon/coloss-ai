@@ -10,8 +10,10 @@
 %% Config for sub-agent (caporegime) Ollama calls — smaller/faster models
 -record(sub_config, {
     ollama_url :: string(),
+    mcp_url    :: string(),
     model      :: string(),
-    timeout    :: integer()
+    timeout    :: integer(),
+    max_steps  :: integer()
 }).
 
 %% The mission ledger entry

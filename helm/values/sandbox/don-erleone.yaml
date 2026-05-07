@@ -16,3 +16,8 @@ persistence:
   enabled: true
   accessMode: ReadWriteOnce
   size: 2Gi
+
+config:
+  ollamaModel: "qwen3.5:9b"
+  subModel: "qwen3.5:9b" #"qwen3.5:0.8b"
+  mcpUrl: "http://kubernetes-mcp.kubernetes-mcp.svc.cluster.local:8080/mcp"

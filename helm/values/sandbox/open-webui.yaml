@@ -18,7 +18,8 @@ ollama:
 openai:
   baseUrl: "http://don-erleone.don-erleone.svc.cluster.local:8080/v1"
 
-env: {}
+env:
+  OPENAI_API_KEY: "sk-don-erleone-dummy-key"
 
 persistence:
   enabled: true

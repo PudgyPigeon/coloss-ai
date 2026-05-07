@@ -1,139 +1,210 @@
 %% @doc Shared HTTP client for Ollama API calls via Gun.
 -module(ollama_client).
 
--export([generate/3, generate/4, generate/5]).
+-export([generate/3, generate/4, generate/5, generate_with_tools/5]).
 
 -ifdef(TEST).
 -compile(export_all).
 -endif.
 
-generate(Prompt, SystemPrompt, Opts) ->
-    generate(Prompt, SystemPrompt, [], Opts, undefined).
+%% ------------------------------------------------------------------------
+%% API
+%% ------------------------------------------------------------------------
 
-generate(Prompt, SystemPrompt, PrevContext, Opts) ->
-    generate(Prompt, SystemPrompt, PrevContext, Opts, undefined).
+generate(Prompt, System, Opts) ->
+    generate(Prompt, System, [], Opts, undefined).
 
-%% @doc Call Ollama with an optional ChunkCallback function for streaming
-generate(Prompt, SystemPrompt, PrevContext, Opts, ChunkCallback) ->
-    #{url := URL, model := Model, timeout := Timeout} = Opts,
-    Stream = maps:get(stream, Opts, false),
-    
-    Payload = build_payload(Model, Prompt, PrevContext, SystemPrompt, Stream),
-    SafeURL = to_list(URL),
-    ChatURL = string:replace(SafeURL, "/api/generate", "/api/chat"),
-    
-    do_request(lists:flatten(ChatURL), Payload, Timeout, ChunkCallback).
+generate(Prompt, System, Context, Opts) ->
+    generate(Prompt, System, Context, Opts, undefined).
 
-%% --- Internal HTTP & State Machine ---
+generate(Prompt, System, Context, Opts, Callback) ->
+    execute_request(Prompt, System, Context, [], Opts, Callback).
 
-do_request(ChatURL, Payload, Timeout, ChunkCallback) ->
-    %% Parse the URL to get Host, Port, and Path
-    URI = uri_string:parse(ChatURL),
+generate_with_tools(Prompt, System, Context, Tools, Opts) ->
+    execute_request(Prompt, System, Context, Tools, Opts, undefined).
+
+%% ------------------------------------------------------------------------
+%% High-Level Request Flow
+%% ------------------------------------------------------------------------
+
+execute_request(Prompt, System, Context, Tools, Opts, Callback) ->
+    %% SRE Fix: Using maps:get to avoid badmatch if Opts is not exactly a map 
+    %% or is missing keys.
+    URL     = maps:get(url, Opts),
+    Model   = maps:get(model, Opts),
+    Timeout = maps:get(timeout, Opts, 120000), %% Default to 120s
+    Stream  = maps:get(stream, Opts, false),
+
+    Payload  = build_payload(Model, Prompt, Context, System, Stream, Tools),
+    Endpoint = resolve_chat_endpoint(URL),
+
+    do_http_call(Endpoint, Payload, Timeout, Stream, Callback).
+
+%% ------------------------------------------------------------------------
+%% HTTP Execution (Gun Logic)
+%% ------------------------------------------------------------------------
+
+do_http_call(Endpoint, Payload, Timeout, IsStream, Callback) ->
+    URI  = uri_string:parse(Endpoint),
     Host = maps:get(host, URI),
     Port = maps:get(port, URI, 80),
     Path = maps:get(path, URI),
 
-    %% 1. Open the async connection
-    {ok, ConnPid} = gun:open(Host, Port, #{connect_timeout => 5000}),
-    
-    case gun:await_up(ConnPid, 5000) of
-        {ok, _Protocol} ->
-            Headers = [{<<"content-type">>, <<"application/json">>}],
-            %% 2. Fire the POST request (this returns a Stream Reference ID)
-            StreamRef = gun:post(ConnPid, Path, Headers, Payload),
-            
-            %% 3. Enter the receive loop to catch the streaming response
-            Result = stream_loop(ConnPid, StreamRef, Timeout, <<>>, <<>>, ChunkCallback),
-            
-            %% 4. Clean up the connection when finished
-            gun:close(ConnPid),
-            Result;
-            
+    StartTime = erlang:system_time(microsecond),
+    telemetry:execute([don_erleone, ollama, request, start], #{time => StartTime}, #{host => Host, path => Path}),
+
+    case gun:open(Host, Port, #{connect_timeout => 5000, protocols => [http]}) of
+        {ok, ConnPid} ->
+            try gun:await_up(ConnPid, 5000) of
+                {ok, _} ->
+                    Headers = [{<<"content-type">>, <<"application/json">>}],
+                    StreamRef = gun:post(ConnPid, Path, Headers, Payload),
+                    Result = stream_loop(ConnPid, StreamRef, Timeout, IsStream, <<>>, <<>>, Callback),
+                    
+                    Duration = erlang:system_time(microsecond) - StartTime,
+                    Success = case Result of {ok, _} -> true; _ -> false end,
+                    telemetry:execute([don_erleone, ollama, request, stop], #{duration => Duration}, #{host => Host, success => Success}),
+                    
+                    gun:close(ConnPid),
+                    Result;
+                {error, Reason} ->
+                    telemetry:execute([don_erleone, ollama, request, error], #{}, #{host => Host, reason => await_up_failed, error => Reason}),
+                    gun:close(ConnPid),
+                    {error, {connection_failed, Reason}}
+            catch
+                _:E -> 
+                    telemetry:execute([don_erleone, ollama, request, error], #{}, #{host => Host, reason => await_up_exception, error => E}),
+                    gun:close(ConnPid), 
+                    {error, connection_timeout}
+            end;
         {error, Reason} ->
-            gun:close(ConnPid),
-            {error, {connection_failed, Reason}}
+            telemetry:execute([don_erleone, ollama, request, error], #{}, #{host => Host, reason => open_failed, error => Reason}),
+            {error, {open_failed, Reason}}
     end.
 
-stream_loop(ConnPid, StreamRef, Timeout, Buffer, AccText, ChunkCallback) ->
+%% ------------------------------------------------------------------------
+%% Stream State Machine
+%% ------------------------------------------------------------------------
+
+stream_loop(Conn, Ref, Tmo, IsStream, Buffer, Acc, CB) ->
     receive
-        %% Catch the initial HTTP headers
-        {gun_response, ConnPid, StreamRef, fin, Status, _Headers} ->
+        %% Response Metadata
+        {gun_response, Conn, Ref, nofin, 200, _Headers} ->
+            logger:debug(#{event => ollama_stream_started, ref => Ref}),
+            stream_loop(Conn, Ref, Tmo, IsStream, Buffer, Acc, CB);
+        
+        {gun_response, Conn, Ref, _, Status, Headers} when Status >= 400 ->
+            logger:error(#{
+                event => ollama_http_error,
+                status => Status,
+                headers => Headers,
+                ref => Ref
+            }),
             {error, {http_status, Status}};
-        {gun_response, ConnPid, StreamRef, nofin, 200, _Headers} ->
-            %% HTTP 200 OK. The body will follow as gun_data messages. Loop!
-            stream_loop(ConnPid, StreamRef, Timeout, Buffer, AccText, ChunkCallback);
-        {gun_response, ConnPid, StreamRef, nofin, Status, _Headers} ->
-            {error, {http_status, Status}};
 
-        %% Catch the streaming body chunks
-        {gun_data, ConnPid, StreamRef, nofin, Data} ->
-            %% Append new data to buffer and extract any complete JSON lines
-            {NextBuffer, NewAccText} = process_buffer(<<Buffer/binary, Data/binary>>, AccText, ChunkCallback),
-            stream_loop(ConnPid, StreamRef, Timeout, NextBuffer, NewAccText, ChunkCallback);
+        %% Data Ingress
+        {gun_data, Conn, Ref, nofin, Data} ->
+            telemetry:execute([don_erleone, ollama, stream, chunk], #{size => byte_size(Data)}, #{ref => Ref}),
+            handle_ongoing_data(Conn, Ref, Tmo, IsStream, <<Buffer/binary, Data/binary>>, Acc, CB);
 
-        %% Catch the final chunk
-        {gun_data, ConnPid, StreamRef, fin, Data} ->
-            FinalBuffer = <<Buffer/binary, Data/binary>>,
-            {LastRemainder, TempAccText} = process_buffer(FinalBuffer, AccText, ChunkCallback),
-            
-            %% Parse whatever is left in the buffer (in case it lacked a trailing newline)
-            FinalAccText = process_single_json(LastRemainder, TempAccText, ChunkCallback),
-            {ok, FinalAccText};
+        {gun_data, Conn, Ref, fin, Data} ->
+            logger:debug(#{event => ollama_stream_finished, ref => Ref, last_chunk_size => byte_size(Data)}),
+            handle_final_data(<<Buffer/binary, Data/binary>>, IsStream, Acc, CB);
 
-        {gun_error, ConnPid, StreamRef, Reason} ->
-            {error, Reason};
-        {gun_down, ConnPid, _, _, _, _} ->
+        %% Error states
+        {gun_error, Conn, Ref, Reason} -> 
+            logger:error(#{event => ollama_gun_stream_error, ref => Ref, reason => Reason}),
+            {error, {stream_err, Reason}};
+        {gun_error, Conn, Reason} -> 
+            logger:error(#{event => ollama_gun_conn_error, reason => Reason}),
+            {error, {gun_err, Reason}};
+        {gun_down, Conn, _, _, _, _} -> 
+            logger:warning(#{event => ollama_conn_down, ref => Ref}),
             {error, connection_closed}
-            
-    after Timeout ->
+    after Tmo ->
+        logger:error(#{event => ollama_request_timeout, ref => Ref}),
         {error, timeout}
     end.
 
-%% --- NDJSON Buffer Logic ---
+%% ------------------------------------------------------------------------
+%% Data Processing Logic
+%% ------------------------------------------------------------------------
 
-process_buffer(Buffer, AccText, ChunkCallback) ->
+handle_ongoing_data(Conn, Ref, Tmo, true, Buffer, Acc, CB) ->
+    {NextBuf, NewAcc} = process_ndjson_lines(Buffer, Acc, CB),
+    stream_loop(Conn, Ref, Tmo, true, NextBuf, NewAcc, CB);
+handle_ongoing_data(Conn, Ref, Tmo, false, Buffer, Acc, CB) ->
+    stream_loop(Conn, Ref, Tmo, false, Buffer, Acc, CB).
+
+handle_final_data(FinalBody, true, Acc, CB) ->
+    {Remainder, TempAcc} = process_ndjson_lines(FinalBody, Acc, CB),
+    {ok, finalize_json(Remainder, TempAcc, CB)};
+handle_final_data(FinalBody, false, Acc, CB) ->
+    case finalize_json(FinalBody, Acc, CB) of
+        {error, _} = Err -> Err;
+        Result -> {ok, Result}
+    end.
+
+process_ndjson_lines(Buffer, Acc, CB) ->
     case binary:split(Buffer, <<"\n">>) of
         [Line, Rest] ->
-            NewAcc = process_single_json(Line, AccText, ChunkCallback),
-            %% Recursively process the rest of the buffer
-            process_buffer(Rest, NewAcc, ChunkCallback);
+            NewAcc = finalize_json(Line, Acc, CB),
+            process_ndjson_lines(Rest, NewAcc, CB);
         [Remainder] ->
-            %% No newline found. Wait for the next chunk of data.
-            {Remainder, AccText}
+            {Remainder, Acc}
     end.
 
-process_single_json(<<>>, AccText, _) -> 
-    AccText;
-process_single_json(JSONLine, AccText, ChunkCallback) ->
-    try jsx:decode(JSONLine, [return_maps]) of
-        #{<<"message">> := #{<<"content">> := Content}} ->
-            %% If a callback was provided, fire it instantly
-            if ChunkCallback =/= undefined -> ChunkCallback(Content);
-               true -> ok
-            end,
-            %% Append to the full accumulated text
-            <<AccText/binary, Content/binary>>;
-        _ -> 
-            AccText
-    catch 
-        _:_ -> AccText
-    end.
+finalize_json(<<>>, Acc, _) -> Acc;
+finalize_json(Line, Acc, CB) ->
+    try jsx:decode(Line, [return_maps]) of
+        #{<<"message">> := Msg} -> process_ollama_msg(Msg, Acc, CB);
+        #{<<"error">> := Err}   -> {error, {ollama_error, Err}};
+        _                       -> Acc
+    catch _:_ -> Acc end.
 
-%% --- Utility ---
+process_ollama_msg(#{<<"content">> := C} = Msg, Acc, CB) ->
+    maybe_callback(CB, C),
+    accumulate_text(Acc, Msg, C);
+process_ollama_msg(Msg, _Acc, _CB) ->
+    Msg.
 
-build_payload(Model, Prompt, PrevContext, SystemPrompt, Stream) ->
-    SystemMsg = #{<<"role">> => <<"system">>, <<"content">> => to_binary(SystemPrompt)},
-    UserMsg = #{<<"role">> => <<"user">>, <<"content">> => to_binary(Prompt)},
-    Messages = [SystemMsg | PrevContext] ++ [UserMsg],
-    jsx:encode(#{
-        <<"model">> => to_binary(Model),
-        <<"messages">> => Messages,
-        <<"format">> => <<"json">>,
-        <<"stream">> => Stream
-    }).
+%% ------------------------------------------------------------------------
+%% Construction & Normalization
+%% ------------------------------------------------------------------------
 
-to_binary(B) when is_binary(B) -> B;
-to_binary(L) when is_list(L) -> list_to_binary(L);
-to_binary(Other) -> iolist_to_binary(io_lib:format("~p", [Other])).
+build_payload(Model, Prompt, Context, System, Stream, Tools) ->
+    SysBin = to_bin(System),
+    SysMsgs = if SysBin =:= <<>> -> []; true -> [#{<<"role">> => <<"system">>, <<"content">> => SysBin}] end,
+    
+    PromptBin = to_bin(Prompt),
+    UserMsgs = if PromptBin =:= <<>> -> []; true -> [#{<<"role">> => <<"user">>, <<"content">> => PromptBin}] end,
+    
+    FullMessages = SysMsgs ++ Context ++ UserMsgs,
+    
+    Base = #{
+        <<"model">>    => to_bin(Model),
+        <<"messages">> => FullMessages,
+        <<"stream">>   => Stream
+    },
+    jsx:encode(maybe_add_tools(Base, Tools)).
+
+resolve_chat_endpoint(URL) ->
+    L = to_list(URL),
+    lists:flatten(string:replace(L, "/api/generate", "/api/chat")).
+
+maybe_add_tools(Payload, []) -> Payload;
+maybe_add_tools(Payload, Tools) -> Payload#{<<"tools">> => Tools}.
+
+maybe_callback(undefined, _) -> ok;
+maybe_callback(CB, Content)  -> CB(Content).
+
+accumulate_text(<<>>, Msg, _C) -> Msg;
+accumulate_text(Acc, _Msg, C) when is_binary(Acc) -> <<Acc/binary, C/binary>>;
+accumulate_text(_Acc, Msg, _C) -> Msg.
+
+to_bin(B) when is_binary(B) -> B;
+to_bin(L) when is_list(L) -> list_to_binary(L);
+to_bin(Any) -> iolist_to_binary(io_lib:format("~p", [Any])).
+
 to_list(B) when is_binary(B) -> binary_to_list(B);
 to_list(L) when is_list(L) -> L.

@@ -37,6 +37,8 @@ spec:
               value: {{ .Values.config.timeout | quote }}
             - name: SUB_TIMEOUT
               value: {{ .Values.config.subTimeout | quote }}
+            - name: MCP_URL
+              value: {{ .Values.config.mcpUrl | quote }}
             
             # Map the SRE env block from values.yaml
             {{- range $key, $value := .Values.env }}

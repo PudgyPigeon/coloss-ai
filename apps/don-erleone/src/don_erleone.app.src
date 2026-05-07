@@ -12,7 +12,8 @@
     poolboy,
     crypto,  
     ssl,     
-    gun      
+    gun,
+    telemetry
    ]},
   {env, []},
   {modules, []}]}.
