@@ -96,7 +96,7 @@ erlang_don_erleone_path := "apps/don-erleone"
 
 # Replace these with your actual public repository URLs
 haskell_kubernetes_mcp_remote := "https://github.com/PudgyPigeon/haskell-kubernetes-mcp.git"
-erlang_don_erleone_remote := "https://github.com/your-username/don-erleone.git"
+erlang_don_erleone_remote := "https://github.com/PudgyPigeon/don-erleone.git"
 
 # Push the Kubernetes MCP code to its own public repo
 [group: 'git']
@@ -117,6 +117,34 @@ git-erlang-don-erleone-push:
 [group: 'git']
 git-erlang-don-erleone-pull:
     git subtree pull --prefix={{ erlang_don_erleone_path }} {{ erlang_don_erleone_remote }} main --squash
+
+# Push all changes as a single squashed commit with a custom message
+[group: 'git']
+git-don-erleone-squash-push message="feat: Aggregated updates from monorepo":
+    @echo "=> Squashing changes for Don Erleone with message: '{{message}}'..."
+    # 1. Clean up old temp branches
+    @git branch -D tmp-don-erleone-split 2>/dev/null || true
+    
+    # 2. Extract the subtree history to a temporary branch
+    git subtree split --prefix={{ erlang_don_erleone_path }} -b tmp-don-erleone-split
+    
+    # 3. Fetch the latest remote state
+    git fetch {{ erlang_don_erleone_remote }} main
+    
+    # 4. Switch to the split branch and reset soft to the remote's head
+    git checkout tmp-don-erleone-split
+    git reset --soft FETCH_HEAD
+    
+    # 5. Create the single aggregated commit using your input
+    git commit -m "{{message}}"
+    
+    # 6. Push to remote main
+    git push {{ erlang_don_erleone_remote }} tmp-don-erleone-split:main
+    
+    # 7. Cleanup
+    git checkout -
+    git branch -D tmp-don-erleone-split
+    @echo "=> Successfully pushed squashed update to Don Erleone."
 
 # --- [ Sub-Project Dispatchers ] ---
 
