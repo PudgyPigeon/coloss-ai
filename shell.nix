@@ -25,6 +25,7 @@ let
     imageLoadCommands = [
       "echo '🚀 Loading kubernetes-mcp...'; nix run ./apps#kubernetes-mcp-load && minikube image load kubernetes-mcp:latest"
       "echo '🚀 Loading don-erleone...'; nix run ./apps#don-erleone-load && minikube image load don-erleone:latest"
+      "echo '🚀 Loading wiree...'; nix run ./apps#wire-load && minikube image load wire:latest"
     ];
   };
 

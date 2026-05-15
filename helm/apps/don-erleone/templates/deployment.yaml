@@ -27,6 +27,11 @@ spec:
           workingDir: {{ .Values.persistence.mountPath }}
           
           env:
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+
             - name: OLLAMA_URL
               value: {{ .Values.config.ollamaUrl | quote }}
             - name: OLLAMA_MODEL
@@ -40,11 +45,17 @@ spec:
             - name: MCP_URL
               value: {{ .Values.config.mcpUrl | quote }}
             
-            # Map the SRE env block from values.yaml
+            # Map the env block from values.yaml
             {{- range $key, $value := .Values.env }}
             - name: {{ $key }}
               value: {{ $value | quote }}
             {{- end }}
+
+            # Identity (Hardcoded or move to config/env as needed)
+            - name: NODE_NAME
+              value: {{ .Values.beamNodeSettings.node_name | quote}}
+            - name: NODE_COOKIE
+              value: {{ .Values.beamNodeSettings.node_cookie | quote }}
           
           ports:
             - name: http

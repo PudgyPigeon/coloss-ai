@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "wire.fullname" . }}
+  labels:
+    app: {{ include "wire.fullname" . }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ include "wire.fullname" . }}
+  template:
+    metadata:
+      labels:
+        app: {{ include "wire.fullname" . }}
+    spec:
+      containers:
+        - name: {{ .Chart.Name }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 4000
+            - name: epmd
+              containerPort: 4369
+            - name: d-ports
+              containerPort: 9000 # Distribution port range
+          env:
+            - name: RELEASE_COOKIE
+              value: {{ .Values.config.releaseCookie | quote }}
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: PHX_SERVER
+              value: "true"
+            # This constructs the long-name your Nix runner expects
+            - name: RELEASE_NODE
+              value: "wire@$(POD_IP)"
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 5

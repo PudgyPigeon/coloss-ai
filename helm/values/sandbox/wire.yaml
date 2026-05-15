@@ -1,0 +1,16 @@
+replicaCount: 1
+
+image:
+  repository: wire
+  tag: latest
+  pullPolicy: IfNotPresent
+
+service:
+  type: NodePort
+  port: 80
+  targetPort: 4000
+
+# The secret used for BEAM distribution
+# MUST match the Erlang "Don Erleone" pod cookie
+config:
+  releaseCookie: "agentic_brain_secret"

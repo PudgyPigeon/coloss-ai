@@ -23,39 +23,52 @@
       inputs.just.follows = "just";
       inputs.nix2container.follows = "nix2container";
     };
+    # The Wire - Dashboard for Agents
+    wire = {
+      url = "path:./wire";
+      inputs.nixpkgs.follows = "nixpkgs";
+      inputs.flake-utils.follows = "flake-utils";
+      inputs.just.follows = "just";
+      inputs.nix2container.follows = "nix2container";
+    };
   };
 
   # The '@ inputs' allows the let block to see 'inputs.kubernetes-mcp-src'
-  outputs = { self, nixpkgs, flake-utils, ... }:
+  outputs = { self, nixpkgs, flake-utils, ... }@ inputs:
     flake-utils.lib.eachDefaultSystem (system:
       let
-        # pkgs = import nixpkgs { inherit system; };
         inherit (nixpkgs) lib;
 
         # Converts a sub-flake input into a standard set of artifacts
-        mkAppBundle = name: input: {
-          packages = {
-            "${name}" = input.packages.${system}.default;
-            "${name}-image" = input.packages.${system}.image;
-          };
-          apps = {
-            # Each function call creates two apps: one raw binary and one docker loading operation for image
-            "${name}" = input.apps.${system}.default // {
-              meta.description = "The binary application for ${name}";
+        mkAppBundle = name: input:
+          let
+            # input = self.inputs.${name};
+            pkgs = input.packages.${system};
+            apps = input.apps.${system};
+          in
+          {
+            packages = {
+              "${name}" = pkgs.default;
+              "${name}-image" = pkgs.image;
             };
-            "${name}-load" = {
-              type = "app";
-              # Accessing the binary via the package is safer than relying on sub-flake app structures
-              program = "${input.packages.${system}.image.copyToDockerDaemon}/bin/copy-to-docker-daemon";
-              meta.description = "Build and load the OCI image for ${name} into the local Docker daemon";
+            apps = {
+              "${name}" = apps.default // {
+                meta.description = "The binary application for ${name}";
+              };
+              "${name}-load" = {
+                type = "app";
+                program = "${pkgs.image.copyToDockerDaemon}/bin/copy-to-docker-daemon";
+                meta.description = "Build and load the OCI image for ${name} into the local Docker daemon";
+              };
             };
           };
-        };
-
         # Generate bundles for every microservice
+        # serviceNames = [ "kubernetes-mcp" "don-erleone" "wire" ];
+        # bundles = map mkAppBundle serviceNames;
         bundles = [
-          (mkAppBundle "kubernetes-mcp" self.inputs.kubernetes-mcp)
-          (mkAppBundle "don-erleone" self.inputs.don-erleone)
+          (mkAppBundle "kubernetes-mcp" inputs.kubernetes-mcp)
+          (mkAppBundle "don-erleone" inputs.don-erleone)
+          (mkAppBundle "wire" inputs.wire)
         ];
       in
       {

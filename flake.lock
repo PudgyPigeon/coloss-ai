@@ -29,7 +29,8 @@
         "nix2container": "nix2container",
         "nixpkgs": [
           "nixpkgs"
-        ]
+        ],
+        "wire": "wire"
       },
       "locked": {
         "path": "./apps",
@@ -168,11 +169,11 @@
         "systems": "systems_2"
       },
       "locked": {
-        "lastModified": 1776342965,
-        "narHash": "sha256-EI65H4dC/2Uri38P7yS6qA+6M9c+OfpYwST6DFsT+aQ=",
+        "lastModified": 1777319491,
+        "narHash": "sha256-emJcMT1LgicS20/wnPAfgNvhrdwxAaIjQ/TnSSCLpUA=",
         "owner": "MercuryTechnologies",
         "repo": "ghciwatch",
-        "rev": "97f3797049b39002cb290f5c0ab109b79016393f",
+        "rev": "739006ac809b9f86efefdbb0e0c6a8dd2297df5c",
         "type": "github"
       },
       "original": {
@@ -187,11 +188,11 @@
         "nixpkgs": "nixpkgs_3"
       },
       "locked": {
-        "lastModified": 1777185950,
-        "narHash": "sha256-R/yb23Sc4FdDicIkRDJMSGkRA8xpsyOa5utzcQTEj9w=",
+        "lastModified": 1778391847,
+        "narHash": "sha256-urD9R/qn7rwtzaVP65angk7z4bwxlP3w5G5Aa5tVmuw=",
         "owner": "casey",
         "repo": "just",
-        "rev": "53a658c69a38e9e35c513d92b3190d170c24236e",
+        "rev": "f92413bb045a058b35206d590c8f3ae147ea68aa",
         "type": "github"
       },
       "original": {
@@ -339,11 +340,11 @@
     },
     "nixpkgs_4": {
       "locked": {
-        "lastModified": 1776877367,
-        "narHash": "sha256-EHq1/OX139R1RvBzOJ0aMRT3xnWyqtHBRUBuO1gFzjI=",
+        "lastModified": 1778443072,
+        "narHash": "sha256-zi7/fsqM/kFdNuED//4WOCUtezGtKKqRNORjMvfwjnA=",
         "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "0726a0ecb6d4e08f6adced58726b95db924cef57",
+        "rev": "da5ad661ba4e5ef59ba743f0d112cbc30e474f32",
         "type": "github"
       },
       "original": {
@@ -443,6 +444,37 @@
         "repo": "default",
         "type": "github"
       }
+    },
+    "wire": {
+      "inputs": {
+        "flake-utils": [
+          "all-apps",
+          "flake-utils"
+        ],
+        "just": [
+          "all-apps",
+          "just"
+        ],
+        "nix2container": [
+          "all-apps",
+          "nix2container"
+        ],
+        "nixpkgs": [
+          "all-apps",
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "path": "./wire",
+        "type": "path"
+      },
+      "original": {
+        "path": "./wire",
+        "type": "path"
+      },
+      "parent": [
+        "all-apps"
+      ]
     }
   },
   "root": "root",

@@ -1,8 +1,8 @@
-## Name of the node
--sname don_erleone
+## Name of the node (Long Name)
+-name ${NODE_NAME:-don_erleone}@${POD_IP:-127.0.0.1}
 
 ## Cookie for distributed erlang
--setcookie agentic_brain_secret
+-setcookie ${NODE_COOKIE:-agentic_brain_secret}
 
-## Mnesia directory - ensured to be in our writable /data volume
--mnesia dir '"data/mnesia"'
+## Mnesia directory - the '" "' wrapping ensures Erlang reads it as a single string/atom
+-mnesia dir '"${MNESIA_DIR:-data/mnesia}"'

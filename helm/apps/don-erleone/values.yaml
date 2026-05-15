@@ -9,6 +9,10 @@ service:
   type: ClusterIP
   port: 8080
 
+beamNodeSettings:
+  node_name: "don_erleone"
+  node_cookie: "agentic_brain_secret" # should probably be a real secret later
+
 config:
   ollamaUrl: "http://ollama-internal.ollama.svc.cluster.local:11434/api/generate"
   ollamaModel: "qwen3.5:9b"
