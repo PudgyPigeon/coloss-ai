@@ -251,9 +251,6 @@ call_ollama(Prompt, Context, Config) ->
                                 timeout => de_config:config_timeout(Config),
                                 stream => de_config:config_stream(Config)}).
 
-} ) .
-
-
 -spec safe_send({pid(), reference()}, term()) -> ok.
 
 safe_send({Pid, Tag}, Msg) ->
