@@ -2,152 +2,135 @@
 %% Copyright (C) 2026 Tommy (Thae Hyun) Nam <tommynam1994@gmail.com>
 
 -module(de_openai_handler).
--export([init/2]).
 
--define(JSON_TYPE, #{<<"content-type">> => <<"application/json">>}).
--define(SSE_TYPE, #{
-    <<"content-type">> => <<"text/event-stream stream">>,
-    <<"cache-control">> => <<"no-cache">>,
-    <<"connection">> => <<"keep-alive">>
-}).
+-behaviour(cowboy_rest).
 
-%% ------------------------------------------------------------------------
-%% Entry Point
-%% ------------------------------------------------------------------------
+-export([
+  init/2,
+  allowed_methods/2,
+  content_types_accepted/2,
+  handle_post/2
+]).
 
-init(Req0, State) ->
-    StartTime = erlang:system_time(microsecond),
-    Path = cowboy_req:path(Req0),
-    telemetry:execute([don_erleone, http, request, start], #{time => StartTime}, #{path => Path}),
-    
-    {ok, Body, Req} = cowboy_req:read_body(Req0),
-    case parse_incoming_request(Body, Req) of
-        {ok, Params} ->
-            Result = handle_mission_request(Params, Req, State),
-            telemetry:execute([don_erleone, http, request, stop], #{duration => erlang:system_time(microsecond) - StartTime}, #{path => Path, success => true}),
-            Result;
-        {error, Reason} ->
-            telemetry:execute([don_erleone, http, request, stop], #{duration => erlang:system_time(microsecond) - StartTime}, #{path => Path, success => false, error => Reason}),
-            handle_bad_request(Reason, Req, State)
-    end.
+-record(de_openai_handler_state, {}).
 
-%% ------------------------------------------------------------------------
-%% Mission Orchestration
-%% ------------------------------------------------------------------------
+-type state() :: #de_openai_handler_state{}.
 
-handle_mission_request(#{stream := true} = Params, Req, State) ->
-    {SessionId, Prompt} = extract_basics(Params),
-    Tag = make_ref(),
-    
-    %% Async hand-off to the Consigliere
-    de_consigliere:handle_mission(SessionId, Prompt, {self(), Tag}),
-    
-    %% Prepare the SSE stream
-    Req1 = cowboy_req:stream_reply(200, ?SSE_TYPE, Req),
-    run_stream_loop(Req1, Tag, null, State);
+%% =============================================================================
+%% Cowboy Callbacks
+%% =============================================================================
 
-handle_mission_request(#{stream := false} = Params, Req, State) ->
-    {SessionId, Prompt} = extract_basics(Params),
-    Tag = make_ref(),
-    
-    de_consigliere:handle_mission(SessionId, Prompt, {self(), Tag}),
-    wait_for_sync_result(Req, Tag, SessionId, State).
+-spec init(cowboy_req:req(), state()) -> {cowboy_rest, cowboy_req:req(), state()}.
+init(Req, State) ->
+  {cowboy_rest, Req, State}.
 
-%% ------------------------------------------------------------------------
-%% Sync Response Loop
-%% ------------------------------------------------------------------------
+-spec allowed_methods(cowboy_req:req(), state()) -> {list(), cowboy_req:req(), state()}.
+allowed_methods(Req, State) ->
+  {[<<"POST">>], Req, State}.
 
-wait_for_sync_result(Req, Tag, SessionId, State) ->
-    receive
-        {Tag, {done, Content, Mid}} ->
-            send_json_reply(200, de_openai_formatter:build_success(Content, Mid), Req, State);
-        
-        {Tag, {error, Reason}} ->
-            logger:error(#{event => sync_mission_failed, session_id => SessionId, error => Reason}),
-            send_json_reply(500, de_openai_formatter:build_error(Reason), Req, State)
-            
-    after 120000 ->
-        logger:error(#{event => sync_mission_timeout, session_id => SessionId}),
-        send_json_reply(504, de_openai_formatter:build_error(timeout), Req, State)
-    end.
+-spec content_types_accepted(cowboy_req:req(), state()) -> {list(), cowboy_req:req(), state()}.
+content_types_accepted(Req, State) ->
+  {[{{<<"application">>, <<"json">>, []}, handle_post}], Req, State}.
 
-%% ------------------------------------------------------------------------
-%% Async Stream Loop
-%% ------------------------------------------------------------------------
+%% =============================================================================
+%% Request Handling
+%% =============================================================================
 
-run_stream_loop(Req, Tag, LastMid, State) ->
-    receive
-        {Tag, {chunk, Content, Mid}} ->
-            de_openai_formatter:stream_chunk(Req, Content, Mid),
-            run_stream_loop(Req, Tag, Mid, State);
-            
-        {Tag, {done, Content, Mid}} ->
-            safe_stream_finish(Req, Content, Mid, State);
-            
-        {Tag, {error, Reason}} ->
-            safe_stream_error(Req, Reason, LastMid, State);
+-spec handle_post(cowboy_req:req(), state()) -> {true, cowboy_req:req(), state()} | {stop, cowboy_req:req(), state()}.
+handle_post(Req, State) ->
+  {ok, Body, Req1} = cowboy_req:read_body(Req),
+  try jsx:decode(Body, [return_maps]) of
+    Params ->
+      process_request(Params, Req1, State)
+  catch
+    _:_ ->
+      send_error(400, <<"Invalid JSON">>, Req1, State)
+  end.
 
-        {Tag, {execution_complete, Result}} ->
-            handle_late_execution(Req, Result, LastMid, State);
+process_request(Params, Req, State) ->
+  Prompt = extract_prompt(Params),
+  SessionId = maps:get(<<"user">>, Params, <<"default_session">>),
+  IsStream = maps:get(<<"stream">>, Params, false),
 
-        _Unexpected ->
-            run_stream_loop(Req, Tag, LastMid, State)
-            
-    after 120000 ->
-        safe_stream_error(Req, timeout, LastMid, State)
-    end.
+  %% The Tag for async communication
+  Ref = make_ref(),
+  Self = self(),
+  From = {Self, Ref},
 
-%% ------------------------------------------------------------------------
-%% Logic Chunks (The "Functional" bits)
-%% ------------------------------------------------------------------------
+  %% Orchestration: Hand off to de_consigliere
+  de_consigliere:handle_mission(SessionId, Prompt, From),
 
-parse_incoming_request(Body, Req) ->
-    try
-        Decoded = jsx:decode(Body, [return_maps]),
-        #{<<"messages">> := Messages} = Decoded,
-        #{<<"content">> := Prompt} = lists:last(Messages),
-        
-        {PeerIP, _} = cowboy_req:peer(Req),
-        
-        {ok, #{
-            session_id => to_bin_ip(PeerIP),
-            prompt => Prompt,
-            stream => maps:get(<<"stream">>, Decoded, false)
-        }}
-    catch
-        _:E:S -> {error, {E, S}}
-    end.
+  case IsStream of
+    true ->
+      execute_stream(Req, Ref, State);
+    false ->
+      execute_sync(Req, Ref, State)
+  end.
 
-extract_basics(#{session_id := Sid, prompt := P}) -> {Sid, P}.
+%% =============================================================================
+%% Sync Execution
+%% =============================================================================
 
-send_json_reply(Status, Body, Req, State) ->
-    {ok, cowboy_req:reply(Status, ?JSON_TYPE, Body, Req), State}.
+execute_sync(Req, Ref, State) ->
+  receive
+    {Ref, {done, Answer, MissionId}} ->
+      Payload = de_openai_formatter:build_success(Answer, MissionId),
+      Req1 = cowboy_req:set_resp_body(Payload, Req),
+      {true, Req1, State};
+    {Ref, {error, Reason}} ->
+      Payload = de_openai_formatter:build_error(Reason),
+      Req1 = cowboy_req:set_resp_body(Payload, Req),
+      {true, Req1, State}
+  after 300000 ->
+      send_error(504, <<"Gateway Timeout">>, Req, State)
+  end.
 
-handle_bad_request(ErrorInfo, Req, State) ->
-    logger:error(#{event => bad_request, error => ErrorInfo}),
-    Body = de_openai_formatter:build_error(<<"Invalid JSON payload">>),
-    send_json_reply(400, Body, Req, State).
+%% =============================================================================
+%% Stream Execution
+%% =============================================================================
 
-%% ------------------------------------------------------------------------
-%% Stream Helpers
-%% ------------------------------------------------------------------------
+execute_stream(Req, Ref, State) ->
+  Req1 = cowboy_req:stream_reply(200, #{
+    <<"content-type">> => <<"text/event-stream">>,
+    <<"cache-control">> => <<"no-cache">>
+  }, Req),
 
-safe_stream_finish(Req, Content, Mid, State) ->
-    try
-        de_openai_formatter:stream_chunk(Req, Content, Mid),
-        de_openai_formatter:stream_done(Req, Mid),
-        {ok, Req, State}
-    catch
-        _:E -> safe_stream_error(Req, E, Mid, State)
-    end.
+  run_stream_loop(undefined, Ref, Req1, null),
+  {stop, Req1, State}.
 
-safe_stream_error(Req, Reason, Mid, State) ->
-    try de_openai_formatter:stream_error(Req, Reason, Mid) catch _:_ -> ok end,
-    {ok, Req, State}.
+run_stream_loop(Conn, Ref, Req, MissionId) ->
+  receive
+    Msg -> handle_stream_msg(Msg, Conn, Ref, Req, MissionId)
+  after 300000 ->
+    de_openai_formatter:stream_error(Req, timeout, MissionId)
+  end.
 
-handle_late_execution(Req, {ok, #{response := C, id := Mid}}, _LastMid, State) ->
-    safe_stream_finish(Req, C, Mid, State);
-handle_late_execution(Req, {error, R}, LastMid, State) ->
-    safe_stream_error(Req, R, LastMid, State).
+handle_stream_msg({Ref, {chunk, Content, Mid}}, Conn, Ref, Req, _Mid) ->
+  de_openai_formatter:stream_chunk(Req, Content, Mid),
+  run_stream_loop(Conn, Ref, Req, Mid);
+handle_stream_msg({Ref, {done, Content, Mid}}, _Conn, Ref, Req, _Mid) ->
+  de_openai_formatter:stream_chunk(Req, Content, Mid),
+  de_openai_formatter:stream_done(Req, Mid);
+handle_stream_msg({Ref, {error, Reason}}, _Conn, Ref, Req, MissionId) ->
+  de_openai_formatter:stream_error(Req, Reason, MissionId);
+handle_stream_msg({'DOWN', _, process, Conn, Reason}, Conn, _Ref, Req, MissionId) ->
+  logger:error(#{event => process_died, pid => Conn, reason => Reason}),
+  de_openai_formatter:stream_error(Req, process_died, MissionId);
+handle_stream_msg(Unexpected, Conn, Ref, Req, MissionId) ->
+  logger:warning(#{event => unexpected_msg, msg => Unexpected}),
+  run_stream_loop(Conn, Ref, Req, MissionId).
 
-to_bin_ip(IP) -> iolist_to_binary(io_lib:format("~p", [IP])).
+%% =============================================================================
+%% Helpers
+%% =============================================================================
+
+extract_prompt(#{<<"messages">> := Msgs}) ->
+  LastMsg = lists:last(Msgs),
+  maps:get(<<"content balance">>, LastMsg, maps:get(<<"content">>, LastMsg, <<>>));
+extract_prompt(_) ->
+  <<>>.
+
+send_error(Code, Msg, Req, State) ->
+  Payload = de_openai_formatter:build_error(Msg),
+  Req1 = cowboy_req:reply(Code, #{<<"content-type">> => <<"application/json">>}, Payload, Req),
+  {stop, Req1, State}.

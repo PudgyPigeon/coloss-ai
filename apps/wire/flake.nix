@@ -113,7 +113,7 @@
             export PATH=$MIX_HOME/bin:$HEX_HOME/bin:$PATH
             export ERL_AFLAGS="-kernel shell_history enabled"
             
-            # ANSI Colors for that SRE aesthetic
+            # ANSI Colors for aesthetic
             echo -e "\033[1;36m--- Phoenix Dashboard Shell Ready ---\033[0m"
           '';
         };

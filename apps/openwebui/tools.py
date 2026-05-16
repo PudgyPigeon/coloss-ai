@@ -18,7 +18,7 @@ class Tools:
         Query the local Haskell MCP infrastructure server. 
         Use this tool to check if the Kubernetes agent is online or to verify the current deployment environment.
         """
-        # SRE Note: In Docker-based Open WebUI, 'host.docker.internal' reaches the WSL2/Nix host.
+        # Note: In Docker-based Open WebUI, 'host.docker.internal' reaches the WSL2/Nix host.
         # We check both to be safe.
         urls = [
             f"http://172.23.204.227:30090/{endpoint.lstrip('/')}",

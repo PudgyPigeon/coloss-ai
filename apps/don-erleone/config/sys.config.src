@@ -9,11 +9,6 @@
       {sub_timeout, ${SUB_TIMEOUT:-120000}}
     ]
    },
-   {os_mon, [
-      {start_disksup, false},
-      {start_memsup, true},
-      {start_cpu_sup, true}
-   ]},
    {mnesia, [{dir, "${MNESIA_DIR}"}]},
    {kernel, [
        {logger_level, info},

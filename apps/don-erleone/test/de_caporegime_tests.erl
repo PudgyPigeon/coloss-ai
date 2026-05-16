@@ -14,7 +14,7 @@ build_sub_prompt_test_() ->
             ?_assertMatch(
                 {_, _},
                 binary:match(
-                    de_agent_brain:build_sub_prompt(Task, Input, []),
+                    iolist_to_binary(de_agent_brain:build_sub_prompt(Task, Input, [])),
                     ExpectedSubString
                 )
             )

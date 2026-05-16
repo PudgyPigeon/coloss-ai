@@ -8,25 +8,32 @@
 
 -include_lib("kernel/include/logger.hrl").
 
-setup() ->
-    Events = [
-        [don_erleone, startup],
-        [don_erleone, http, request, start],
-        [don_erleone, http, request, stop],
-        [don_erleone, http, request, exception],
-        [don_erleone, ollama, request, start],
-        [don_erleone, ollama, request, stop],
-        [don_erleone, ollama, request, error],
-        [don_erleone, worker, execute, start],
-        [don_erleone, worker, execute, stop],
-        [don_erleone, worker, execute, exception]
-    ],
-    telemetry:attach_many(<<"don-erleone-telemetry">>, Events, fun ?MODULE:handle_event/4, ok).
+%% =============================================================================
+%% API
+%% =============================================================================
 
+-spec setup() -> ok | {error, term()}.
+setup() ->
+  Events = [
+    [don_erleone, startup],
+    [don_erleone, http, request, start],
+    [don_erleone, http, request, stop],
+    [don_erleone, http, request, exception],
+    [don_erleone, ollama, request, start],
+    [don_erleone, ollama, request, stop],
+    [don_erleone, ollama, request, error],
+    [don_erleone, worker, execute, start],
+    [don_erleone, worker, execute, stop],
+    [don_erleone, worker, execute, exception]
+  ],
+  telemetry:attach_many(<<"don-erleone-telemetry">>, Events, fun ?MODULE:handle_event/4, ok).
+
+-spec handle_event(list(), map(), map(), term()) -> ok.
 handle_event(Event, Measurements, Metadata, _Config) ->
-    ?LOG_INFO(#{
-        node => node(),
-        telemetry_event => Event,
-        measurements => Measurements,
-        metadata => Metadata
-    }).
+  ?LOG_INFO(#{
+    node => node(),
+    telemetry_event => Event,
+    measurements => Measurements,
+    metadata => Metadata
+  }),
+  ok.

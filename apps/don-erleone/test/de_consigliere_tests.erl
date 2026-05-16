@@ -4,6 +4,8 @@
 handle_mission_test_() ->
     {setup,
         fun() ->
+            {ok, _} = application:ensure_all_started(telemetry),
+            de_telemetry:setup(),
             meck:new(poolboy, [non_strict]),
             %% Intercept and silence the expected error logs
             meck:new(logger, [unstick, passthrough]),

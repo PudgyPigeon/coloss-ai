@@ -4,6 +4,8 @@
 dispatch_mission_test_() ->
     {setup,
         fun() ->
+            {ok, _} = application:ensure_all_started(telemetry),
+            de_telemetry:setup(),
             %% Intercept poolboy and de_store to test full failure recovery
             meck:new(poolboy, [non_strict]),
             meck:new(de_store, [non_strict]),
