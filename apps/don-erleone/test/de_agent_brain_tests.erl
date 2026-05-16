@@ -4,28 +4,37 @@
 -module(de_agent_brain_tests).
 -include_lib("eunit/include/eunit.hrl").
 
-analyze_priority_tools_test() ->
-  Msg = #{<<"content">> => <<"Hi">>, <<"tool_calls">> => [#{<<"id">> => 1}]},
-  ?assertEqual({continue, [#{<<"id">> => 1}]}, de_agent_brain:analyze_loop_step(Msg)).
+%% =============================================================================
+%% Test Generators
+%% =============================================================================
 
-analyze_stop_content_test() ->
-  Msg = #{<<"content">> => <<"Mission complete">>},
-  ?assertEqual({stop, <<"Mission complete">>}, de_agent_brain:analyze_loop_step(Msg)).
+brain_test_() ->
+  [
+    test_analyze_loop(),
+    test_decode_tools()
+  ].
 
-analyze_fallback_stop_test() ->
-  Msg = #{},
-  ?assertEqual({stop, <<"Mission complete or no further action required.">>}, de_agent_brain:analyze_loop_step(Msg)).
+%% =============================================================================
+%% Tests
+%% =============================================================================
 
-decode_mcp_result_test() ->
-  Body = <<"{\"result\": {\"tools\": [1, 2]}}">>,
-  ?assertEqual({ok, [1, 2]}, de_agent_brain:decode_tools(Body)).
+test_analyze_loop() ->
+  [
+    {"Tool priority",
+     ?_assertEqual({continue, [#{<<"id">> => 1}]},
+                   de_agent_brain:analyze_loop_step(#{<<"content">> => <<"Hi">>, <<"tool_calls">> => [#{<<"id">> => 1}]}))},
+    {"Stop content",
+     ?_assertEqual({stop, <<"Done">>},
+                   de_agent_brain:analyze_loop_step(#{<<"content">> => <<"Done">>}))},
+    {"Empty fallback",
+     ?_assertEqual({stop, <<"Mission complete or no further action required.">>},
+                   de_agent_brain:analyze_loop_step(#{}))}
+  ].
 
-decode_flat_tools_test() ->
-  Body = <<"{\"tools\": [3, 4]}">>,
-  ?assertEqual({ok, [3, 4]}, de_agent_brain:decode_tools(Body)).
-
-decode_invalid_json_test() ->
-  ?assertEqual({error, json_invalid}, de_agent_brain:decode_tools(<<"{">>)).
-
-decode_bad_structure_test() ->
-  ?assertMatch({error, {bad_structure, _}}, de_agent_brain:decode_tools(<<"{}">>)).
+test_decode_tools() ->
+  [
+    ?_assertEqual({ok, [1]}, de_agent_brain:decode_tools(<<"{\"result\": {\"tools\": [1]}}">>)),
+    ?_assertEqual({ok, [2]}, de_agent_brain:decode_tools(<<"{\"tools\": [2]}">>)),
+    ?_assertEqual({error, json_invalid}, de_agent_brain:decode_tools(<<"{">>)),
+    ?_assertMatch({error, {bad_structure, _}}, de_agent_brain:decode_tools(<<"{}">>))
+  ].
