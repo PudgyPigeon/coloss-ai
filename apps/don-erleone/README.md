@@ -133,7 +133,7 @@ Mnesia is used for session and mission persistence. The primary record is define
 
 ## 5. Testing & Observability
 
-### Professional Test Suite
+### Test Suite
 The system includes a granular unit test suite (85+ tests) following the **Macro-List Style**. Tests are designed to be quiet and isolated using `logger` configuration management.
 
 ```bash
