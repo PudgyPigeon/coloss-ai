@@ -1,3 +1,6 @@
+%% SPDX-License-Identifier: AGPL-3.0-or-later
+%% Copyright (C) 2026 Tommy (Thae Hyun) Nam <tommynam1994@gmail.com>
+
 -module(de_utils).
 
 -export([to_list/1, any_to_int/1]).

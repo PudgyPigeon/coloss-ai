@@ -49,8 +49,7 @@
 
           export RELEASE_TMP=''${RELEASE_TMP:-/tmp}
           export RELEASE_MUTABLE_DIR=''${RELEASE_MUTABLE_DIR:-/tmp}
-          export RELEASE_SYS_CONFIG=${erlApp}/releases/${version}/sys.config.src
-          export RELEASE_VM_ARGS=${erlApp}/releases/${version}/vm.args.src
+          export RELX_OUT_FILE_PATH=''${RELEASE_TMP}
 
           export RELEASE_NODE=''${RELEASE_NODE:-don_erleone@127.0.0.1}
           export RELEASE_COOKIE=''${RELEASE_COOKIE:-agentic_brain_secret}

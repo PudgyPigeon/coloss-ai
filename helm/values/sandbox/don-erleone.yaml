@@ -6,7 +6,7 @@ replicaCount: 1
 image:
   # Assuming you are building and loading this image directly into minikube
   repository: don-erleone #localhost/don-erleone
-  pullPolicy: Always #Always
+  pullPolicy: IfNotPresent #Always
   tag: "latest"
 
 env: {}

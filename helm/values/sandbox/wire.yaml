@@ -3,7 +3,7 @@ replicaCount: 1
 image:
   repository: wire
   tag: latest
-  pullPolicy: Always
+  pullPolicy: IfNotPresent
 
 # 1. Standard Service (The Dashboard Receptionist)
 service:

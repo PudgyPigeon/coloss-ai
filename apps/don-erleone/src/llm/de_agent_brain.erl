@@ -1,3 +1,6 @@
+%% SPDX-License-Identifier: AGPL-3.0-or-later
+%% Copyright (C) 2026 Tommy (Thae Hyun) Nam <tommynam1994@gmail.com>
+
 -module(de_agent_brain).
 
 -define(MCP_VERSION, <<"2025-06-18">>).

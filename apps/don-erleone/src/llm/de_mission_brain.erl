@@ -1,3 +1,6 @@
+%% SPDX-License-Identifier: AGPL-3.0-or-later
+%% Copyright (C) 2026 Tommy (Thae Hyun) Nam <tommynam1994@gmail.com>
+
 -module(de_mission_brain).
 -export([analyze_llm_response/2, parse_json_payload/1, build_new_context/3]).
 

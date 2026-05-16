@@ -1,3 +1,6 @@
+%% SPDX-License-Identifier: AGPL-3.0-or-later
+%% Copyright (C) 2026 Tommy (Thae Hyun) Nam <tommynam1994@gmail.com>
+
 %% Global config for the main consigliere brain
 -record(config, {
     ollama_url    :: string(),

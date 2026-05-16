@@ -21,12 +21,14 @@ config:
   subTimeout: "120000"
   mcpUrl: "http://kubernetes-mcp.infra.svc.cluster.local:30090/mcp"
 
-# SRE Environment Variables for Nix/Erlang
+# Environment Variables for Nix/Erlang
 env:
-  RELX_REPLACE_OS_VARS: "true"
-  RELX_OUT_FILE_PATH: "/tmp"
-  RELEASE_MUTABLE_DIR: "/tmp"
   RELEASE_TMP: "/tmp"
+  RELEASE_MUTABLE_DIR: "/tmp"
+  RELX_OUT_FILE_PATH: "/tmp"
+
+  RELX_REPLACE_OS_VARS: "true"
+
   MNESIA_DIR: "/data/mnesia"
   HOME: "/data"
 

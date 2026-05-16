@@ -1,3 +1,6 @@
+%% SPDX-License-Identifier: AGPL-3.0-or-later
+%% Copyright (C) 2026 Tommy (Thae Hyun) Nam <tommynam1994@gmail.com>
+
 %% @doc Shared HTTP client for Ollama API calls via Gun.
 -module(de_ollama_client).
 
