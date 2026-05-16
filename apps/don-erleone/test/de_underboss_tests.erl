@@ -2,54 +2,54 @@
 -include_lib("eunit/include/eunit.hrl").
 
 dispatch_mission_test_() ->
-    {setup,
-        fun() ->
-            {ok, _} = application:ensure_all_started(telemetry),
-            de_telemetry:setup(),
-            %% Intercept poolboy and de_store to test full failure recovery
-            meck:new(poolboy, [non_strict]),
-            meck:new(de_store, [non_strict]),
-            %% Intercept and silence the expected error logs
-            meck:new(logger, [unstick, passthrough]),
-            meck:expect(logger, error, fun(_Format, _Args) -> ok end),
-            ok
-        end,
-        fun(_) ->
-            meck:unload(logger),
-            meck:unload(poolboy),
-            meck:unload(de_store)
-        end,
-        fun() ->
-            TestPid = self(),
-            Tag = make_ref(),
-            CowboyFrom = {TestPid, Tag},
+    {foreach,
+        fun setup/0,
+        fun teardown/1,
+        [
+            fun(Arg) -> ?_test(test_mission_failed_db_update(Arg)) end,
+            fun(Arg) -> ?_test(test_mission_failed_client_notification(Arg)) end
+        ]}.
 
-            %% 1. Force the poolboy transaction to crash violently
-            meck:expect(poolboy, transaction, fun(_Pool, _Fun) ->
-                erlang:error(simulated_pool_exhaustion)
-            end),
+setup() ->
+    {ok, _} = application:ensure_all_started(telemetry),
+    de_telemetry:setup(),
+    meck:unload(), %% Ensure clean slate
+    meck:new(poolboy, [non_strict]),
+    meck:new(de_store, [non_strict]),
+    meck:new(logger, [unstick, passthrough]),
+    meck:expect(logger, error, fun(_Format, _Args) -> ok end),
+    ok.
 
-            %% 2. Expect that handle_dispatch_error caught it and updated the DB
-            meck:expect(de_store, fail_mission, fun(Id, Reason) ->
-                TestPid ! {mission_failed, Id, Reason},
-                ok
-            end),
+teardown(_) ->
+    meck:unload(logger),
+    meck:unload(poolboy),
+    meck:unload(de_store).
 
-            MissionSpec = #{id => 999, intent => <<"test">>, cowboy_from => CowboyFrom},
-            ?assertEqual(ok, de_underboss:dispatch_mission(MissionSpec)),
+test_mission_failed_db_update(_) ->
+    TestPid = self(),
+    meck:expect(poolboy, transaction, fun(_, _) -> erlang:error(simulated_exhaustion) end),
+    meck:expect(de_store, fail_mission, fun(Id, Reason) -> TestPid ! {failed, Id, Reason}, ok end),
 
-            %% 3. Assert the DB update was triggered with the correct failure reason
-            receive
-                {mission_failed, 999, {execution_error, simulated_pool_exhaustion}} -> ok
-            after 1000 ->
-                erlang:error(timeout_waiting_for_fail_mission)
-            end,
+    Mission = #{id => 999, intent => <<"test">>, cowboy_from => {TestPid, make_ref()}},
+    de_underboss:dispatch_mission(Mission),
 
-            %% 4. Assert the cowboy handler was also notified of the failure
-            receive
-                {Tag, {error, {execution_failed, simulated_pool_exhaustion}}} ->
-                    ok
-            after 1000 ->
-                erlang:error(timeout_waiting_for_cowboy_notification)
-            end
-        end}.
+    receive
+        {failed, 999, {execution_error, simulated_exhaustion}} -> ok
+    after 1000 ->
+        erlang:error(timeout_db_update)
+    end.
+
+test_mission_failed_client_notification(_) ->
+    TestPid = self(),
+    Tag = make_ref(),
+    meck:expect(poolboy, transaction, fun(_, _) -> erlang:error(simulated_exhaustion) end),
+    meck:expect(de_store, fail_mission, fun(_, _) -> ok end),
+
+    Mission = #{id => 999, intent => <<"test">>, cowboy_from => {TestPid, Tag}},
+    de_underboss:dispatch_mission(Mission),
+
+    receive
+        {Tag, {error, {execution_failed, simulated_exhaustion}}} -> ok
+    after 1000 ->
+        erlang:error(timeout_client_notification)
+    end.
