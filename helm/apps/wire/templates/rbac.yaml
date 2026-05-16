@@ -16,6 +16,6 @@ subjects:
     name: default
     namespace: {{ .Release.Namespace }}
 roleRef:
+  apiGroup: rbac.authorization.k8s.io # ✅ Correct field name
   kind: Role
-  name: {{ include "wire.fullname" . }}-pod-reader
-  api_group: rbac.authorization.k8s.io
+  name: wire-pod-reader

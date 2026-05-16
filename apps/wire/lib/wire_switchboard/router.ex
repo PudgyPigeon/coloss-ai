@@ -7,7 +7,7 @@ defmodule Wire.Switchboard.Router do
   pipeline :browser do
     plug(:accepts, ["html"])
     plug(:fetch_session)
-    plug(:fetch_live_flash) # Now the compiler will find this function
+    plug(:fetch_live_flash)
     plug(:protect_from_forgery)
     plug(:put_secure_browser_headers)
   end
@@ -20,8 +20,10 @@ defmodule Wire.Switchboard.Router do
     pipe_through(:browser)
 
     get("/", Wire.Switchboard.StatusController, :index)
+
     live_dashboard(
       "/dashboard",
+      metrics: Wire.Telemetry,
       colors: [
         primary: "#00ff00",   # Neon Green for buttons/headers
         secondary: "#003300"  # Dark Green for accents

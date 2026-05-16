@@ -12,3 +12,10 @@ config :wire, Wire.Switchboard.Endpoint,
   live_view: [signing_salt: "KvKm4mt0sXwI7PjSqxa3rSH9Cig9W+NI"] # mix phx.gen.secret 32
 
 config :phoenix, :json_library, Jason
+
+config :os_mon,
+  start_memsup: false,
+  start_disksup: false,
+  start_cpu_sup: false
+
+# import_config "#{config_env()}.exs"

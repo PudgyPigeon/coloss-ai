@@ -25,6 +25,7 @@ config:
 env:
   RELX_REPLACE_OS_VARS: "true"
   RELX_OUT_FILE_PATH: "/tmp"
+  RELEASE_MUTABLE_DIR: "/tmp"
   RELEASE_TMP: "/tmp"
   MNESIA_DIR: "/data/mnesia"
   HOME: "/data"

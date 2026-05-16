@@ -8,15 +8,19 @@ defmodule Wire.Switchboard.Endpoint do
   ]
 
   socket "/live", Phoenix.LiveView.Socket,
-    websocket: [connect_info: [session: @session_options]]
+    websocket: [connect_info: [session: @session_options]]\
 
-  plug Plug.Session, @session_options
+  plug Plug.Static, at: "/", from: :wire, gzip: false
+  plug Plug.RequestId
+  plug Plug.Telemetry, event_prefix: [:phoenix, :endpoint]
 
   plug Plug.Parsers,
     parsers: [:urlencoded, :multipart, :json],
     pass: ["*/*"],
     json_decoder: Phoenix.json_library()
 
-
-  plug(Wire.Switchboard.Router)
+  plug Plug.MethodOverride
+  plug Plug.Head
+  plug Plug.Session, @session_options
+  plug Wire.Switchboard.Router
 end

@@ -47,14 +47,20 @@
         run-script = pkgs.writeShellScriptBin "don-erleone-runner" ''
           set -e
 
-          # 1. Standardize mutable paths
           export RELEASE_TMP=''${RELEASE_TMP:-/tmp}
-          export RELX_OUT_FILE_PATH=''${RELX_OUT_FILE_PATH:-/tmp}
-          export RELX_REPLACE_OS_VARS=true
+          export RELEASE_MUTABLE_DIR=''${RELEASE_MUTABLE_DIR:-/tmp}
+          export RELEASE_SYS_CONFIG=${erlApp}/releases/${version}/sys.config.src
+          export RELEASE_VM_ARGS=${erlApp}/releases/${version}/vm.args.src
 
+          export RELEASE_NODE=''${RELEASE_NODE:-don_erleone@127.0.0.1}
+          export RELEASE_COOKIE=''${RELEASE_COOKIE:-agentic_brain_secret}
+          export RELX_REPLACE_OS_VARS=true
+          
           # 2. Start EPMD using the stripped binary bundled INSIDE the release 
           echo "=> Starting EPMD..."
+
           EPMD_BIN=$(find ${erlApp} -path "*/erts-*/bin/epmd" -type f | head -n 1)
+          
           if [ -x "$EPMD_BIN" ]; then
              "$EPMD_BIN" -daemon || true
           else
@@ -93,6 +99,10 @@
           config = {
             Entrypoint = [ "${run-script}/bin/don-erleone-runner" ];
             WorkingDir = "/data";
+            ExposedPorts = {
+              "4369/tcp" = {}; # EPMD
+              "8080/tcp" = {}; # API
+            };
             User = "1000";
             Env = [
               "HOME=/data"

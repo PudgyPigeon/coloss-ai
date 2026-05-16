@@ -17,16 +17,23 @@ let
     argocdSvcPort = "443";
   };
 
-  # Import the platform module (Your Proprietary Platform)
-  # This is now 100% independent of your nix/ folder
+  # Load-images
+  swarmApps = {
+    kubernetes-mcp-load = "kubernetes-mcp";
+    don-erleone-load    = "don-erleone";
+    wire-load           = "wire";
+  };
+  mkLoadCommand = attr: img: 
+    "echo '🚀 Refreshing ${img}...'; " +
+    "nix run ./apps#${attr} && " +
+    "kubectl delete deployment --all -n ${img} --ignore-not-found=true && " +
+    "echo '🚀 Loading ${img} into Minikube...'; " +
+    "minikube image load ${img}:latest --overwrite=true";
+
   platform = import ./platform {
     inherit pkgs config;
     helmSource = ./helm;
-    imageLoadCommands = [
-      "echo '🚀 Loading kubernetes-mcp...'; nix run ./apps#kubernetes-mcp-load && minikube image load kubernetes-mcp:latest"
-      "echo '🚀 Loading don-erleone...'; nix run ./apps#don-erleone-load && minikube image load don-erleone:latest"
-      "echo '🚀 Loading wiree...'; nix run ./apps#wire-load && minikube image load wire:latest"
-    ];
+    imageLoadCommands = pkgs.lib.mapAttrsToList mkLoadCommand swarmApps;
   };
 
 in

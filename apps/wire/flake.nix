@@ -44,18 +44,13 @@
           };
         };
 
-        toolList = p: {
-          find = "${p.findutils}/bin/find";
-          head = "${p.coreutils}/bin/head";
-          grep = "${p.gnugrep}/bin/grep";
-        };
-        tools = toolList pkgs;
-
         # 2. The Runner Script (Standardized for K8s/Distributed BEAM)
         run-script = pkgs.writeShellScriptBin "${pname}-runner" ''
           set -e
 
           # Standardize mutable paths
+          export LANG=C.UTF-8
+          export LC_ALL=C.UTF-8
           export RELEASE_TMP=''${RELEASE_TMP:-/tmp}
           export RELX_OUT_FILE_PATH=''${RELX_OUT_FILE_PATH:-/tmp}
           export RELEASE_NODE=''${RELEASE_NODE:-wire@127.0.0.1}
@@ -63,7 +58,7 @@
 
           # Start EPMD using the stripped binary bundled inside the release
           echo "=> Starting EPMD..."
-          EPMD_BIN=$(${tools.find} ${elixirApp} -path "*/erts-*/bin/epmd" | ${tools.head} -n 1)
+          EPMD_BIN=$(find ${elixirApp} -path "*/erts-*/bin/epmd" | head -n 1)
           
           if [ -x "$EPMD_BIN" ]; then
               "$EPMD_BIN" -daemon || true

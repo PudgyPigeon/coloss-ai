@@ -5,4 +5,4 @@
 -setcookie ${NODE_COOKIE:-agentic_brain_secret}
 
 ## Mnesia directory - the '" "' wrapping ensures Erlang reads it as a single string/atom
--mnesia dir '"${MNESIA_DIR:-data/mnesia}"'
+-mnesia dir "${MNESIA_DIR:-data/mnesia}"
