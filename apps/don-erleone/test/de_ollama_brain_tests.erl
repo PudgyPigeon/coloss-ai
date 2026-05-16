@@ -9,6 +9,8 @@
 %% Test Generators
 %% =============================================================================
 
+-spec accumulate_test_() -> term().
+
 accumulate_test_() ->
     [{"Accumulate content chunks",
       fun () ->
@@ -92,9 +94,13 @@ accumulate_test_() ->
                            (maps:get(<<"content">>, lists:nth(2, NewCtx))))
       end}].
 
+-spec get_content(map()) -> binary().
+
 get_content(#{<<"message">> :=
                   #{<<"content">> := C}}) ->
     C.
+
+-spec get_tools(map()) -> list().
 
 get_tools(#{<<"message">> :=
                 #{<<"tool_calls">> := T}}) ->

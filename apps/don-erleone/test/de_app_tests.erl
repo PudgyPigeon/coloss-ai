@@ -9,10 +9,14 @@
 %% Setup & Teardown Fixtures
 %% ===================================================================
 
+-spec setup_env() -> ok.
+
 setup_env() ->
     %% You can set up initial state here if needed,
     %% but for this we just need to pass an empty state forward.
     ok.
+
+-spec teardown_env(term()) -> ok.
 
 teardown_env(_SetupState) ->
     %% GUARANTEED CLEANUP: Wipe all variables we touched during tests
@@ -28,6 +32,8 @@ teardown_env(_SetupState) ->
 %% ===================================================================
 
 %% The _test_() suffix tells EUnit this is a generator that uses fixtures
+-spec env_vars_test_() -> term().
+
 env_vars_test_() ->
     {foreach,
      fun setup_env/0,
@@ -38,6 +44,8 @@ env_vars_test_() ->
 %% ===================================================================
 %% The Actual Tests (Note they take _SetupState as an argument now)
 %% ===================================================================
+
+-spec test_get_env_string(term()) -> [term()].
 
 test_get_env_string(_SetupState) ->
     %% Return a list of assertions
@@ -53,6 +61,8 @@ test_get_env_string(_SetupState) ->
      end,
      ?_assertEqual("default",
                    (de_config:get_env_string(missing_key, "default")))].
+
+-spec test_get_env_integer(term()) -> [term()].
 
 test_get_env_integer(_SetupState) ->
     [begin
@@ -82,6 +92,8 @@ test_get_env_integer(_SetupState) ->
 
 %% We don't need setup/teardown for this one since it doesn't mutate state,
 %% so we can just use the standard _test() suffix.
+-spec get_system_prompt_test() -> ok.
+
 get_system_prompt_test() ->
     Prompt = de_config:get_system_prompt(),
     ?assert((is_binary(Prompt))),

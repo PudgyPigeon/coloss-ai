@@ -62,7 +62,6 @@ dispatch_mission(Params, Req, State) ->
                    Params,
                    <<"default_session">>),
     IsStream = maps:get(<<"stream">>, Params, false),
-
     Ref = make_ref(),
     de_consigliere:handle_mission(Sid,
                                   Prompt,

@@ -9,6 +9,8 @@
 %% Test Generators
 %% =============================================================================
 
+-spec logger_test_() -> term().
+
 logger_test_() ->
     {setup,
      fun () -> logger:set_primary_config(#{level => none})
@@ -21,11 +23,15 @@ logger_test_() ->
 %% Tests
 %% =============================================================================
 
+-spec test_transactions() -> [term()].
+
 test_transactions() ->
     [?_assertEqual(ok,
                    (de_store:handle_transaction({atomic, ok}, 1))),
      ?_assertEqual({error, fail},
                    (de_store:handle_transaction({aborted, fail}, 1)))].
+
+-spec test_reads() -> [term()].
 
 test_reads() ->
     [?_assertEqual({ok, rec},
@@ -34,6 +40,8 @@ test_reads() ->
                    (de_store:handle_read_result([]))),
      ?_assertEqual({error, fail},
                    (de_store:handle_read_result({error, fail})))].
+
+-spec test_writes() -> [term()].
 
 test_writes() ->
     [?_assertEqual({ok, 1},

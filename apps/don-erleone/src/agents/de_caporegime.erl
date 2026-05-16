@@ -81,9 +81,7 @@ handle_conn_check({error, Reason}, Spec) ->
                    mission_id => Mid, error => Reason}),
     Result = {error, {infrastructure_down, Reason}},
     finalize_mission(Spec, Result),
-    {reply,
-     Result,
-     undefined}. %% Returning undefined as state to force reconnect next time
+    {reply, Result, undefined}.
 
 %% =============================================================================
 %% Self-Healing Connection Manager

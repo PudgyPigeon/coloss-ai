@@ -6,6 +6,8 @@
 -include_lib("eunit/include/eunit.hrl").
 
 %% We test the logic that moved to de_mission_brain
+-spec parse_json_payload_test() -> ok.
+
 parse_json_payload_test() ->
     ?assertEqual((#{}),
                  (de_mission_brain:parse_json_payload(<<>>))),
@@ -15,6 +17,8 @@ parse_json_payload_test() ->
     ?assertEqual((#{<<"key">> => <<"value">>}),
                  (de_mission_brain:parse_json_payload(<<"some noise ",
                                                         ValidJson/binary, " more noise">>))).
+
+-spec analyze_llm_response_test() -> ok.
 
 analyze_llm_response_test() ->
     OllamaRaw =
@@ -27,12 +31,16 @@ analyze_llm_response_test() ->
     ?assertEqual(<<"k8s_deploy">>, Intent),
     ?assertEqual(<<"Delegating">>, Response).
 
+-spec analyze_llm_response_fallback_test() -> ok.
+
 analyze_llm_response_fallback_test() ->
     FakeOllama = <<"Just plain text here.">>,
     {Type, Response} =
         de_mission_brain:analyze_llm_response(FakeOllama, []),
     ?assertEqual(direct, Type),
     ?assertEqual(FakeOllama, Response).
+
+-spec build_new_context_test() -> ok.
 
 build_new_context_test() ->
     Prev = [],

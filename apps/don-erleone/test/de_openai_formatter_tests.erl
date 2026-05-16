@@ -5,6 +5,8 @@
 
 -include_lib("eunit/include/eunit.hrl").
 
+-spec build_success_test() -> ok.
+
 build_success_test() ->
     Json = de_openai_formatter:build_success(<<"hi">>, 123),
     Decoded = jsx:decode(Json, [return_maps]),
@@ -14,6 +16,8 @@ build_success_test() ->
     ?assertMatch([#{<<"message">> :=
                         #{<<"content">> := <<"hi">>}}],
                  Choices).
+
+-spec build_error_test() -> ok.
 
 build_error_test() ->
     Json = de_openai_formatter:build_error(failed),

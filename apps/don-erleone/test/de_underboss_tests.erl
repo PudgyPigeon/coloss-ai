@@ -5,6 +5,8 @@
 
 -include_lib("eunit/include/eunit.hrl").
 
+-spec dispatch_mission_test_() -> term().
+
 dispatch_mission_test_() ->
     {foreach,
      fun setup/0,
@@ -15,6 +17,8 @@ dispatch_mission_test_() ->
       fun (Arg) ->
               ?_test((test_mission_failed_graceful_recovery(Arg)))
       end]}.
+
+-spec setup() -> ok.
 
 setup() ->
     {ok, _} = application:ensure_all_started(telemetry),
@@ -29,11 +33,15 @@ setup() ->
                 fun (_Format, _Args) -> ok end),
     ok.
 
+-spec teardown(term()) -> ok.
+
 teardown(_) ->
     meck:unload(logger),
     meck:unload(poolboy),
     meck:unload(de_store),
     meck:unload(de_consigliere).
+
+-spec test_mission_failed_db_update(term()) -> ok.
 
 test_mission_failed_db_update(_) ->
     TestPid = self(),
@@ -59,6 +67,9 @@ test_mission_failed_db_update(_) ->
         after 1000 -> erlang:error(timeout_db_update)
     end.
 
+-spec
+     test_mission_failed_graceful_recovery(term()) -> ok.
+
 test_mission_failed_graceful_recovery(_) ->
     TestPid = self(),
     Tag = make_ref(),
@@ -71,7 +82,7 @@ test_mission_failed_graceful_recovery(_) ->
     %% Expect de_consigliere:handle_system_error to be called
     meck:expect(de_consigliere,
                 handle_system_error,
-                fun (Sid, Reason, {P, T}) ->
+                fun (Sid, Reason, {_P, T}) ->
                         TestPid ! {graceful, Sid, Reason, T},
                         ok
                 end),

@@ -15,8 +15,22 @@
 
 -spec setup() -> ok | {error, term()}.
 
-setup( ) -> Events = [ [ don_erleone , startup ] , [ don_erleone , http , request , start ] , [ don_erleone , http , request , stop ] , [ don_erleone , http , request , exception ] , [ don_erleone , ollama , request , start ] , [ don_erleone , ollama , request , stop ] , [ don_erleone , ollama , request , error ] , [ don_erleone , worker , execute , start ] , [ don_erleone , worker , execute , stop ] , [ don_erleone , worker , execute , exception ] ] , telemetry : attach_many( << "don-erleone-telemetry" >> , Events , fun ( ?MODULE ) : handle_event/ 4 , ok ) .
-
+setup() ->
+    Events = [[don_erleone, startup],
+              [don_erleone, http, request, start],
+              [don_erleone, http, request, stop],
+              [don_erleone, http, request, exception],
+              [don_erleone, ollama, request, start],
+              [don_erleone, ollama, request, stop],
+              [don_erleone, ollama, request, error],
+              [don_erleone, worker, execute, start],
+              [don_erleone, worker, execute, stop],
+              [don_erleone, worker, execute, exception]],
+    %% Switched macro capture to local capture to prevent formatter crashes
+    telemetry:attach_many(<<"don-erleone-telemetry">>,
+                          Events,
+                          fun handle_event/4,
+                          ok).
 
 -spec handle_event(list(), map(), map(), term()) -> ok.
 

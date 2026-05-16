@@ -13,6 +13,8 @@
 %% Test Generators
 %% =============================================================================
 
+-spec logger_test_() -> term().
+
 logger_test_() ->
     {setup,
      fun () -> logger:set_primary_config(#{level => none})
@@ -24,6 +26,8 @@ logger_test_() ->
 %% =============================================================================
 %% Tests
 %% =============================================================================
+
+-spec test_stream_events() -> [term()].
 
 test_stream_events() ->
     [?_assertEqual({next, <<>>, <<>>},
@@ -71,6 +75,8 @@ test_stream_events() ->
                                                          ?CTX,
                                                          <<>>,
                                                          <<>>)))].
+
+-spec test_endpoint_parsing() -> [term()].
 
 test_endpoint_parsing() ->
     [?_assertEqual({"localhost", 11434, "/api/chat"},

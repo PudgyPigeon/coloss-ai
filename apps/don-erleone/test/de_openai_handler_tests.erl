@@ -5,6 +5,8 @@
 
 -include_lib("eunit/include/eunit.hrl").
 
+-spec build_success_response_test() -> ok.
+
 build_success_response_test() ->
     Resp =
         de_openai_formatter:build_success(<<"System running.">>,
@@ -19,12 +21,16 @@ build_success_response_test() ->
     ?assertEqual(<<"System running.">>,
                  (maps:get(<<"content">>, Message))).
 
+-spec build_success_response_null_id_test() -> ok.
+
 build_success_response_null_id_test() ->
     Resp = de_openai_formatter:build_success(<<"Ok">>,
                                              null),
     Decoded = jsx:decode(Resp, [return_maps]),
     ?assertEqual(<<"null">>,
                  (maps:get(<<"mission_id">>, Decoded))).
+
+-spec build_error_response_test() -> ok.
 
 build_error_response_test() ->
     Resp = de_openai_formatter:build_error(timeout),
