@@ -21,7 +21,7 @@ config:
   subTimeout: "120000"
   mcpUrl: "http://kubernetes-mcp.infra.svc.cluster.local:30090/mcp"
 
-# Environment Variables for Nix/Erlang
+# Environment Variables for Erlang
 env:
   RELEASE_TMP: "/tmp"
   RELEASE_MUTABLE_DIR: "/tmp"

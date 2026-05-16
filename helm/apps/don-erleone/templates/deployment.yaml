@@ -25,6 +25,14 @@ spec:
           
           # Force Kubernetes to start in /data to prevent relative path breakage
           workingDir: {{ .Values.persistence.mountPath }}
+
+          # Expose overrides if specified in values.yaml, otherwise use Nix default
+          {{- if .Values.image.command }}
+          command: {{ toYaml .Values.image.command | nindent 12 }}
+          {{- end }}
+          {{- if .Values.image.args }}
+          args: {{ toYaml .Values.image.args | nindent 12 }}
+          {{- end }}
           
           env:
             - name: POD_IP
