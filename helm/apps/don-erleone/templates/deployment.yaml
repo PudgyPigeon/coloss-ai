@@ -25,8 +25,21 @@ spec:
           
           # Force Kubernetes to start in /data to prevent relative path breakage
           workingDir: {{ .Values.persistence.mountPath }}
+
+          # Expose overrides if specified in values.yaml, otherwise use Nix default
+          {{- if .Values.image.command }}
+          command: {{ toYaml .Values.image.command | nindent 12 }}
+          {{- end }}
+          {{- if .Values.image.args }}
+          args: {{ toYaml .Values.image.args | nindent 12 }}
+          {{- end }}
           
           env:
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+
             - name: OLLAMA_URL
               value: {{ .Values.config.ollamaUrl | quote }}
             - name: OLLAMA_MODEL
@@ -40,11 +53,17 @@ spec:
             - name: MCP_URL
               value: {{ .Values.config.mcpUrl | quote }}
             
-            # Map the SRE env block from values.yaml
+            # Map the env block from values.yaml
             {{- range $key, $value := .Values.env }}
             - name: {{ $key }}
               value: {{ $value | quote }}
             {{- end }}
+
+            # Identity (Hardcoded or move to config/env as needed)
+            - name: NODE_NAME
+              value: {{ .Values.beamNodeSettings.node_name | quote}}
+            - name: NODE_COOKIE
+              value: {{ .Values.beamNodeSettings.node_cookie | quote }}
           
           ports:
             - name: http

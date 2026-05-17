@@ -1,0 +1,32 @@
+# 1. The Headless Service (For BEAM Clustering/Discovery)
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "wire.fullname" . }}-headless
+  labels:
+    app: {{ include "wire.fullname" . }}
+spec:
+  clusterIP: None
+  selector:
+    app: {{ include "wire.fullname" . }}
+  ports:
+    - name: epmd
+      port: 4369
+      targetPort: 4369
+---
+# 2. The Standard Service (For Dashboard/Web Traffic)
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "wire.fullname" . }}
+  labels:
+    app: {{ include "wire.fullname" . }}
+spec:
+  type: ClusterIP
+  selector:
+    app: {{ include "wire.fullname" . }}
+  ports:
+    - name: http
+      port: 4000
+      targetPort: 4000
+      protocol: TCP

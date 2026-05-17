@@ -1,13 +1,15 @@
 [
-   {don_erleone, [
-      {ollama_model, "qwen3.5:9b"},
-      {ollama_url, "http://ollama-internal.ollama.svc.cluster.local:11434/api/generate"},
-      {mcp_url, "http://kubernetes-mcp.kubernetes-mcp.svc.cluster.local:30090/mcp"},
-      {timeout, 3600000},
-      {sub_model, "qwen3.5:9b"},
-      {sub_timeout, 120000}
-   ]},
-   {mnesia, [{dir, "data/mnesia"}]},
+   {don_erleone, 
+    [
+      {ollama_model, "${OLLAMA_MODEL:-qwen3.5:9b}"},
+      {ollama_url, "${OLLAMA_URL:-http://localhost:11434/api/chat}"},
+      {mcp_url, "${MCP_URL:-http://localhost:30090/mcp}"},
+      {timeout, ${TIMEOUT:-3600000}},
+      {sub_model, "${SUB_MODEL:-qwen3.5:9b}"},
+      {sub_timeout, ${SUB_TIMEOUT:-120000}}
+    ]
+   },
+   {mnesia, [{dir, "${MNESIA_DIR}"}]},
    {kernel, [
        {logger_level, info},
        {logger, [

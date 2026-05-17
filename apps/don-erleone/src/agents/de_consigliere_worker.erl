@@ -1,98 +1,515 @@
+%% SPDX-License-Identifier: AGPL-3.0-or-later
+%% Copyright (C) 2026 Tommy (Thae Hyun) Nam <tommynam1994@gmail.com>
+
 -module(de_consigliere_worker).
+
 -behaviour(gen_server).
+
 -behaviour(poolboy_worker).
--include("records.hrl").
 
--export([start_link/1, init/1, handle_call/3, handle_cast/2, handle_info/2]).
+-export([
+    start_link/1,
+    consult/4,
+    init/1,
+    handle_call/3,
+    handle_cast/2,
+    handle_info/2
+]).
 
-%% --- Lifecycle ---
-start_link([Config]) -> gen_server:start_link(?MODULE, Config, []).
-init(Config) -> {ok, Config}.
+-record(de_consigliere_worker_state, {config :: de_config:config()}).
 
-%% --- Orchestration ---
-handle_call({consult, SessionId, Prompt, CowboyFrom}, _From, Config) ->
-    logger:debug(#{event => worker_consult_start, session_id => SessionId}),
-    try 
-        %% Side Effect: Read from DB
-        Context = de_store:get_latest_context(SessionId),
-        
-        %% Side Effect: Network I/O
-        case call_ollama(Prompt, Context, Config) of
-            {ok, Data} ->
-                Raw = extract_raw(Data),
-                %% SRE FIX: Pass Config into the decision router
-                process_decision(SessionId, Prompt, Raw, Context, CowboyFrom, Config);
-            {error, R} -> 
-                logger:error(#{event => ollama_call_failed, session_id => SessionId, error => R}),
-                notify_error(CowboyFrom, R),
-                {reply, {error, R}, Config}
-        end
+-type state() :: #de_consigliere_worker_state{}.
+
+%% =============================================================================
+%% Lifecycle
+%% =============================================================================
+
+-spec start_link([de_config:config()]) ->
+    {ok, pid()}
+    | {error, term()}.
+
+start_link([Config]) ->
+    gen_server:start_link(?MODULE, Config, []).
+
+-spec init(de_config:config()) -> {ok, state()}.
+
+init(Config) ->
+    {ok, #de_consigliere_worker_state{config = Config}}.
+
+%% =============================================================================
+%% API
+%% =============================================================================
+
+-spec consult(
+    pid(),
+    binary(),
+    binary(),
+    {pid(), reference()}
+) -> ok | {error, term()}.
+
+consult(Worker, SessionId, Prompt, CowboyFrom) ->
+    %% infinity is used because Ollama generation can take 60s+
+    gen_server:call(
+        Worker,
+        {consult, SessionId, Prompt, CowboyFrom},
+        infinity
+    ).
+
+%% =============================================================================
+%% Orchestration
+%% =============================================================================
+
+-spec handle_call(
+    term(),
+    {pid(), term()},
+    state()
+) -> {reply, term(), state()}.
+
+handle_call(
+    {consult, Sid, Prompt, From},
+    _From,
+    State
+) ->
+    logger:debug(#{
+        event => worker_consult_start,
+        session_id => Sid
+    }),
+    try
+        execute_consultation(Sid, Prompt, From, State)
     catch
-        _:E:Stack -> 
-            logger:error(#{event => worker_crash, session_id => SessionId, error => E, stack => Stack}),
-            notify_error(CowboyFrom, worker_fault),
-            {reply, {error, E}, Config}
+        _:Error:Stack ->
+            handle_worker_fault(Error, Stack, Sid, From, State)
     end.
 
-%% --- Side-Effect Handlers ---
+-spec execute_consultation(
+    binary(),
+    binary(),
+    {pid(), reference()},
+    state()
+) -> {reply, term(), state()}.
 
-%% SRE FIX: Added Config as the 6th argument
-process_decision(Sid, Prompt, Raw, PrevCtx, From, Config) ->
-    %% Call the Pure Logic
-    Decision = de_mission_brain:analyze_llm_response(Raw, PrevCtx),
-    NewCtx = de_mission_brain:build_new_context(Prompt, Raw, PrevCtx),
+execute_consultation(Sid, Prompt, From, State) ->
+    Config = State#de_consigliere_worker_state.config,
+    Context = de_store:get_latest_context(Sid),
+    logger:debug(#{
+        event => calling_ollama,
+        session_id => Sid
+    }),
+    Result = call_ollama(Prompt, Context, Config),
+    logger:debug(#{
+        event => ollama_returned,
+        session_id => Sid,
+        result => Result
+    }),
+    handle_ollama_result(
+        Result,
+        Sid,
+        Prompt,
+        Context,
+        From,
+        State
+    ).
 
-    case Decision of
-        {delegate, Intent, Args, Msg} ->
-            logger:info(#{event => decision_delegate, session_id => Sid, intent => Intent}),
-            case de_store:post_mission(Sid, Intent, Prompt, NewCtx) of
-                {ok, Mid} ->
-                    safe_send(From, {chunk, <<"\n", Msg/binary, "\n">>, Mid}),
-                    de_underboss:dispatch_mission(#{id => Mid, intent => Intent, args => Args, prompt => Prompt, cowboy_from => From}),
-                    %% SRE FIX: Return the intact Config instead of []
-                    {reply, ok, Config};
-                {error, Reason} ->
-                    logger:error(#{event => de_store_failed, session_id => Sid, error => Reason}),
-                    notify_error(From, Reason),
-                    %% SRE FIX: Return the intact Config instead of []
-                    {reply, {error, Reason}, Config}
-            end;
+-spec handle_ollama_result(
+    {ok, map()}
+    | {error, term()},
+    binary(),
+    binary(),
+    list(),
+    {pid(), reference()},
+    state()
+) -> {reply, term(), state()}.
 
-        {direct, Msg} ->
-            logger:info(#{event => decision_direct, session_id => Sid}),
-            case de_store:post_mission(Sid, <<"direct">>, Prompt, NewCtx) of
-                {ok, Mid} ->
-                    safe_send(From, {done, Msg, Mid}),
-                    %% SRE FIX: Return the intact Config instead of []
-                    {reply, ok, Config};
-                {error, Reason} ->
-                    logger:error(#{event => de_store_failed, session_id => Sid, error => Reason}),
-                    notify_error(From, Reason),
-                    %% SRE FIX: Return the intact Config instead of []
-                    {reply, {error, Reason}, Config}
-            end
+handle_ollama_result(
+    {ok, Data},
+    Sid,
+    Prompt,
+    Context,
+    From,
+    State
+) ->
+    Raw = extract_raw(Data),
+    process_decision(
+        Sid,
+        Prompt,
+        Raw,
+        Context,
+        From,
+        State
+    );
+handle_ollama_result(
+    {error, Reason},
+    Sid,
+    _Prompt,
+    _Context,
+    From,
+    State
+) ->
+    logger:error(#{
+        event => ollama_call_failed,
+        session_id => Sid,
+        error => Reason
+    }),
+    notify_error(From, Reason),
+    {reply, {error, Reason}, State}.
+
+-spec handle_worker_fault(
+    term(),
+    list(),
+    binary(),
+    {pid(), reference()},
+    state()
+) -> {reply, term(), state()}.
+
+handle_worker_fault(Error, Stack, Sid, From, State) ->
+    logger:error(#{
+        event => worker_crash,
+        session_id => Sid,
+        error => Error,
+        stack => Stack
+    }),
+    notify_error(From, worker_fault),
+    {reply, {error, Error}, State}.
+
+%% =============================================================================
+%% Decision Flow
+%% =============================================================================
+
+-spec process_decision(
+    binary(),
+    binary(),
+    binary(),
+    list(),
+    {pid(), reference()},
+    state()
+) -> {reply, term(), state()}.
+
+process_decision(
+    Sid,
+    Prompt,
+    Raw,
+    Context,
+    From,
+    State
+) ->
+    try
+        Decision =
+            de_mission_brain:analyze_llm_response(Raw, Context),
+        NewCtx = de_mission_brain:build_new_context(
+            Prompt,
+            Raw,
+            Context
+        ),
+        handle_decision(
+            Decision,
+            Sid,
+            Prompt,
+            NewCtx,
+            From,
+            State
+        )
+    catch
+        Class:Reason:Stack ->
+            logger:error(#{
+                event => decision_processing_failed,
+                session_id => Sid,
+                class => Class,
+                reason => Reason,
+                stack => Stack
+            }),
+            handle_worker_fault(Reason, Stack, Sid, From, State)
     end.
 
-%% --- Infrastructure Helpers ---
+-spec handle_decision(
+    {delegate, binary(), map(), binary()}
+    | {direct, binary()},
+    binary(),
+    binary(),
+    list(),
+    {pid(), reference()},
+    state()
+) -> {reply, term(), state()}.
 
-call_ollama(P, Ctx, #config{model=M, stream=S, system_prompt=SP, ollama_url=URL, timeout=T}) ->
-    de_ollama_client:generate(P, SP, Ctx, #{url => URL, model => M, timeout => T, stream => S}).
+handle_decision(
+    {delegate, Intent, Args, Msg},
+    Sid,
+    Prompt,
+    NewCtx,
+    From,
+    State
+) ->
+    logger:info(#{
+        event => decision_delegate,
+        session_id => Sid,
+        intent => Intent
+    }),
+    %% Ensure binary for JSON safety
+    BinMsg = iolist_to_binary([<<"\n">>, Msg, <<"\n">>]),
+    finalize_decision(
+        Sid,
+        Intent,
+        Prompt,
+        NewCtx,
+        From,
+        State,
+        {chunk, BinMsg},
+        Args
+    );
+handle_decision(
+    {direct, Msg},
+    Sid,
+    Prompt,
+    NewCtx,
+    From,
+    State
+) ->
+    logger:info(#{
+        event => decision_direct,
+        session_id => Sid
+    }),
+    finalize_decision(
+        Sid,
+        <<"direct">>,
+        Prompt,
+        NewCtx,
+        From,
+        State,
+        {done, Msg},
+        undefined
+    ).
 
-safe_send({Pid, Tag}, Msg) -> 
-    case is_process_alive(Pid) of
-        true  -> Pid ! {Tag, Msg};
-        false -> logger:warning(#{event => cowboy_dead_drop, target_pid => Pid, message => Msg})
-    end.
+-spec finalize_decision(
+    binary(),
+    binary(),
+    binary(),
+    list(),
+    {pid(), reference()},
+    state(),
+    {chunk | done, binary()},
+    map() | undefined
+) -> {reply, term(), state()}.
 
-notify_error({Pid, Tag}, R) -> 
-    case is_process_alive(Pid) of
-        true  -> Pid ! {Tag, {error, R}};
-        false -> ok
-    end.
+finalize_decision(
+    Sid,
+    Intent,
+    Prompt,
+    NewCtx,
+    From,
+    State,
+    MsgData,
+    Args
+) ->
+    Result = de_store:post_mission(
+        Sid,
+        Intent,
+        Prompt,
+        NewCtx
+    ),
+    handle_storage_result(
+        Result,
+        Sid,
+        Intent,
+        Prompt,
+        From,
+        State,
+        MsgData,
+        Args
+    ).
 
-extract_raw(#{<<"content">> := C}) -> C;
-extract_raw(C) when is_binary(C) -> C;
-extract_raw(_) -> <<"error">>.
+-spec handle_storage_result(
+    {ok, integer()}
+    | {error, term()},
+    binary(),
+    binary(),
+    binary(),
+    {pid(), reference()},
+    state(),
+    {chunk | done, binary()},
+    map() | undefined
+) -> {reply, term(), state()}.
+
+handle_storage_result(
+    {ok, Mid},
+    Sid,
+    Intent,
+    Prompt,
+    From,
+    State,
+    MsgData,
+    Args
+) ->
+    dispatch_result(
+        Sid,
+        From,
+        MsgData,
+        Mid,
+        Intent,
+        Args,
+        Prompt,
+        State
+    );
+handle_storage_result(
+    {error, Reason},
+    Sid,
+    _Intent,
+    _Prompt,
+    From,
+    State,
+    _MsgData,
+    _Args
+) ->
+    logger:error(#{
+        event => de_store_failed,
+        session_id => Sid,
+        error => Reason
+    }),
+    notify_error(From, Reason),
+    {reply, {error, Reason}, State}.
+
+-spec dispatch_result(
+    binary(),
+    {pid(), reference()},
+    {chunk | done, binary()},
+    integer(),
+    binary(),
+    map() | undefined,
+    binary(),
+    state()
+) -> {reply, term(), state()}.
+
+dispatch_result(
+    _Sid,
+    From,
+    {Tag, Content},
+    Mid,
+    <<"direct">>,
+    _Args,
+    _Prompt,
+    State
+) ->
+    safe_send(From, {Tag, Content, Mid}),
+    {reply, ok, State};
+dispatch_result(
+    Sid,
+    From,
+    {Tag, Content},
+    Mid,
+    Intent,
+    Args,
+    Prompt,
+    State
+) ->
+    safe_send(From, {Tag, Content, Mid}),
+    de_underboss:dispatch_mission(#{
+        id => Mid,
+        intent => Intent,
+        args => Args,
+        prompt => Prompt,
+        cowboy_from => From,
+        session_id => Sid
+    }),
+    {reply, ok, State}.
+
+%% =============================================================================
+%% Infrastructure Helpers
+%% =============================================================================
+
+-spec call_ollama(
+    binary(),
+    list(),
+    de_config:config()
+) -> {ok, map()} | {error, term()}.
+
+call_ollama(Prompt, Context, Config) ->
+    de_ollama_client:generate(
+        Prompt,
+        de_config:config_system_prompt(Config),
+        Context,
+        #{
+            url => de_config:config_ollama_url(Config),
+            model => de_config:config_model(Config),
+            timeout => de_config:config_timeout(Config),
+            stream => de_config:config_stream(Config)
+        }
+    ).
+
+-spec safe_send({pid(), reference()}, term()) -> ok.
+
+safe_send({Pid, Tag}, Msg) ->
+    do_safe_send(is_process_alive(Pid), Pid, Tag, Msg).
+
+-spec do_safe_send(
+    boolean(),
+    pid(),
+    reference(),
+    term()
+) -> ok.
+
+do_safe_send(true, Pid, Tag, Msg) ->
+    Pid ! {Tag, Msg},
+    ok;
+do_safe_send(false, Pid, _Tag, Msg) ->
+    logger:warning(#{
+        event => cowboy_dead_drop,
+        target_pid => Pid,
+        message => Msg
+    }),
+    ok.
+
+-spec notify_error({pid(), reference()}, term()) -> ok.
+
+notify_error({Pid, Tag}, Reason) ->
+    do_notify_error(
+        is_process_alive(Pid),
+        Pid,
+        Tag,
+        Reason
+    ).
+
+-spec do_notify_error(
+    boolean(),
+    pid(),
+    reference(),
+    term()
+) -> ok.
+
+do_notify_error(true, Pid, Tag, Reason) ->
+    Pid ! {Tag, {error, Reason}},
+    ok;
+do_notify_error(false, _Pid, _Tag, _Reason) ->
+    ok.
+
+-spec extract_raw(term()) -> binary().
+
+extract_raw(Data) when is_list(Data) ->
+    extract_raw(iolist_to_binary(Data));
+extract_raw(Data) ->
+    do_extract_raw(Data).
+
+-spec do_extract_raw(term()) -> binary().
+
+do_extract_raw(#{
+    <<"message">> :=
+        #{<<"content">> := C}
+}) ->
+    C;
+do_extract_raw(#{<<"content">> := C}) ->
+    C;
+do_extract_raw(#{<<"response">> := C}) ->
+    C;
+do_extract_raw(C) when is_binary(C) -> C;
+do_extract_raw(Unknown) ->
+    logger:warning(#{
+        event =>
+            unknown_ollama_response_format,
+        data => Unknown
+    }),
+    <<"error">>.
+
+-spec handle_cast(term(), state()) -> {noreply, state()}.
 
 handle_cast(_, S) -> {noreply, S}.
+
+-spec handle_info(term(), state()) -> {noreply, state()}.
+
 handle_info(_, S) -> {noreply, S}.

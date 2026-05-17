@@ -1,0 +1,42 @@
+# Default task: list all available recipes
+default:
+    @just --list
+
+# Start the Phoenix server normally
+server:
+    mix phx.server
+
+# Start the Phoenix server inside an interactive IEx session (The "Wiretap" mode)
+iex:
+    iex -S mix phx.server
+
+# Initial setup: install local hex/rebar and fetch dependencies
+setup:
+    mix local.hex --force
+    mix local.rebar --force
+    mix deps.get
+    mix deps.compile
+
+# Run database migrations using the Nix-local Postgres socket
+# migrate:
+#     mix ecto.migrate
+
+# # Rollback database migrations
+# rollback:
+#     mix ecto.rollback
+
+# Run the test suite
+test:
+    mix test
+
+# Build the production release via Nix
+build:
+    nix build .#default
+
+# Load the OCI image into the local Docker daemon
+load:
+    nix run .#load-image
+
+# Clean up build artifacts and Nix-local caches
+clean:
+    rm -rf _build deps .nix-mix .nix-hex

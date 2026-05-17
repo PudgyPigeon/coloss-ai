@@ -1,0 +1,22 @@
+replicaCount: 3
+
+image:
+  repository: wire
+  tag: latest
+  pullPolicy: Always
+
+# 1. Standard Service (The Dashboard Receptionist)
+service:
+  type: NodePort
+  port: 80
+  targetPort: 4000
+
+# 2. Headless Service (The Swarm Phonebook)
+headlessService:
+  port: 4369
+  targetPort: 4369
+
+# The secret used for BEAM distribution
+# MUST match the Erlang "Don Erleone" pod cookie
+config:
+  releaseCookie: "agentic_brain_secret"
