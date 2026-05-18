@@ -29,7 +29,6 @@
       system:
       let
         pkgs = import nixpkgs { inherit system; };
-        localScripts = (import ./nix/apps.nix { inherit pkgs; }).all;
         serviceApps = all-apps.apps.${system};
       in
       {
@@ -37,7 +36,7 @@
         packages = all-apps.packages.${system};
 
         # Expose apps / binaries / executables
-        apps = localScripts // serviceApps;
+        apps = serviceApps;
 
         # Interactive shells
         devShells = {
