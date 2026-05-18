@@ -1,4 +1,8 @@
 defmodule WireWeb.SwarmComponents do
+  @moduledoc """
+  Functional UI components for rendering swarm dashboards and status metrics.
+  """
+
   use Phoenix.Component
 
   attr(:title, :string, required: true)
@@ -6,6 +10,10 @@ defmodule WireWeb.SwarmComponents do
   # :gold or :green
   attr(:type, :atom, default: :gold)
 
+  @doc """
+  Renders a pool utilization card indicating active/idle/overflow worker stats.
+  """
+  @spec pool_card(map()) :: Phoenix.LiveView.Rendered.t()
   def pool_card(assigns) do
     ~H"""
     <div class="glass-card">
@@ -36,6 +44,10 @@ defmodule WireWeb.SwarmComponents do
 
   attr(:mission, :map, required: true)
 
+  @doc """
+  Renders a detailed mission card inside the live ledger timeline feed.
+  """
+  @spec mission_card(map()) :: Phoenix.LiveView.Rendered.t()
   def mission_card(assigns) do
     ~H"""
     <div class="mission-item">
@@ -76,6 +88,10 @@ defmodule WireWeb.SwarmComponents do
   attr(:node_name, :any, required: true)
   attr(:current_node, :any, required: true)
 
+  @doc """
+  Renders a connection status badge chip for a BEAM clustered node.
+  """
+  @spec node_chip(map()) :: Phoenix.LiveView.Rendered.t()
   def node_chip(assigns) do
     ~H"""
     <div class="node-chip">

@@ -1,4 +1,6 @@
 defmodule WireWeb.Endpoint do
+  @moduledoc false
+
   use Phoenix.Endpoint, otp_app: :wire
 
   @session_options [

@@ -329,9 +329,7 @@ mission_error(#mission{error = Error}) -> Error.
 
 -spec broadcast_event(atom(), integer()) -> ok.
 broadcast_event(Event, MissionId) ->
-    %% Ensure pg is started (safe to call multiple times)
-    catch pg:start_link(),
-    case catch pg:get_members(swarm_dashboard_events) of
+    case pg:get_members(swarm_dashboard_events) of
         Pids when is_list(Pids) ->
             [Pid ! {mission_event, Event, MissionId} || Pid <- Pids],
             ok;

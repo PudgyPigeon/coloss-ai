@@ -21,7 +21,9 @@ defmodule WireWeb.Router do
 
     get("/", WireWeb.StatusController, :index)
 
-    live("/swarm", WireWeb.SwarmDashboardLive)
+    live_session :authenticated, on_mount: [{WireWeb.UserAuth, :ensure_authenticated}] do
+      live("/swarm", WireWeb.SwarmDashboardLive)
+    end
 
     live_dashboard(
       "/dashboard",

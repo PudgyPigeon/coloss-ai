@@ -42,3 +42,6 @@ cond do
   true ->
     config :libcluster, topologies: []
 end
+
+config :wire,
+  auth_enabled: System.get_env("AUTH_ENABLED") == "true"

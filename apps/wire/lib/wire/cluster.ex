@@ -1,11 +1,17 @@
 defmodule Wire.Cluster do
+  @moduledoc """
+  Supervisor for libcluster and the local epmd ClusterConnector.
+  """
+
   use Supervisor
 
+  @spec start_link(term()) :: Supervisor.on_start()
   def start_link(opts) do
     Supervisor.start_link(__MODULE__, opts, name: __MODULE__)
   end
 
   @impl true
+  @spec init(term()) :: {:ok, {:supervisor.sup_flags(), [Supervisor.child_spec()]}} | :ignore
   def init(_opts) do
     topologies = Application.get_env(:libcluster, :topologies) || []
     cluster_args = [topologies, [name: Wire.ClusterSupervisor]]
@@ -20,16 +26,23 @@ defmodule Wire.Cluster do
 end
 
 defmodule Wire.ClusterConnector do
+  @moduledoc """
+  A stateful GenServer that continuously polls local EPMD hosts to ensure
+  reliable distributed clustering in Docker Compose/dynamic EPMD network topology.
+  """
+
   use GenServer
   require Logger
 
   @interval_ms 5_000
 
+  @spec start_link(term()) :: GenServer.on_start()
   def start_link(opts) do
     GenServer.start_link(__MODULE__, opts, name: __MODULE__)
   end
 
   @impl true
+  @spec init(term()) :: {:ok, map()}
   def init(_opts) do
     # Only activate the connection polling if we are explicitly running in
     # Docker Compose with EPMD strategy hosts configured.
@@ -46,6 +59,7 @@ defmodule Wire.ClusterConnector do
   end
 
   @impl true
+  @spec handle_info(term(), map()) :: {:noreply, map()}
   def handle_info(:check_connections, %{hosts: [_ | _]} = state) do
     for host <- state.hosts do
       unless host in Node.list() do
@@ -65,10 +79,12 @@ defmodule Wire.ClusterConnector do
     {:noreply, state}
   end
 
+  @spec schedule_check() :: reference()
   defp schedule_check do
     Process.send_after(self(), :check_connections, @interval_ms)
   end
 
+  @spec get_epmd_hosts() :: [atom()]
   defp get_epmd_hosts do
     topologies = Application.get_env(:libcluster, :topologies) || []
     docker_compose_config = Keyword.get(topologies, :docker_compose) || []
