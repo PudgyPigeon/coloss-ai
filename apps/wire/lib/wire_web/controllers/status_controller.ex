@@ -1,6 +1,5 @@
-
-defmodule Wire.Switchboard.StatusController do
-  use Phoenix.Controller
+defmodule WireWeb.StatusController do
+  use Phoenix.Controller, formats: [:html, :json]
 
   def health(conn, _params) do
     json(conn, %{

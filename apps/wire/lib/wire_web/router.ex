@@ -1,4 +1,4 @@
-defmodule Wire.Switchboard.Router do
+defmodule WireWeb.Router do
   use Phoenix.Router
 
   import Phoenix.LiveView.Router
@@ -19,19 +19,24 @@ defmodule Wire.Switchboard.Router do
   scope("/") do
     pipe_through(:browser)
 
-    get("/", Wire.Switchboard.StatusController, :index)
+    get("/", WireWeb.StatusController, :index)
+
+    live("/swarm", WireWeb.SwarmDashboardLive)
 
     live_dashboard(
       "/dashboard",
       metrics: Wire.Telemetry,
       colors: [
-        primary: "#00ff00",   # Neon Green for buttons/headers
-        secondary: "#003300"  # Dark Green for accents
-      ])
+        # Neon Green for buttons/headers
+        primary: "#00ff00",
+        # Dark Green for accents
+        secondary: "#003300"
+      ]
+    )
   end
 
   scope("/api") do
     pipe_through(:api)
-    get("/health", Wire.Switchboard.StatusController, :health)
+    get("/health", WireWeb.StatusController, :health)
   end
 end
