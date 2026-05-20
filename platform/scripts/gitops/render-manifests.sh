@@ -1,60 +1,66 @@
 #!/usr/bin/env bash
+# Aligned with the hierarchical values directory layout: mgmt/, infra/, apps/
 set -euo pipefail
 
-# This script is called by Nix during the build phase to render Helm charts.
-# Variables like $tiers, $envValuesDir, and $out are provided by the Nix environment.
-
-# Create output directories for each tier
-for tier in $TIER_NAMES; do
-  mkdir -p "$out/$tier"
-done
+echo "=================================================="
+echo " 🏗️  Renderer: Hydrating & templating Helm charts"
+echo "=================================================="
 
 # Loop through each tier and its path
-# Note: In the Nix-to-Bash handoff, we'll pass these as JSON or a simple string
 for tier_entry in $TIER_MAPPINGS; do
-    # format: "name:path"
     tier_name=$(echo "$tier_entry" | cut -d: -f1)
     tier_path=$(echo "$tier_entry" | cut -d: -f2)
 
-    echo "--- Rendering Tier: $tier_name ---"
     if [ -d "$tier_path" ]; then
+        echo "➡️  Processing Tier: $tier_name"
         for component_path in "$tier_path"/*; do
             if [ -d "$component_path" ] && [ -f "$component_path/Chart.yaml" ]; then
                 name=$(basename "$component_path")
                 RENDER_TMP=$(mktemp -d)
+                
+                # Make sure we clean up even if step fails
+                trap 'rm -rf "$RENDER_TMP"' EXIT
 
-                # 1. Start empty
-                VALS_ARG=""
-
-                # 2. Add the base chart values (Lower Priority)
-                BASE_VALS="$component_path/values.yaml"
-                if [ -f "$BASE_VALS" ]; then
-                    VALS_ARG="-f $BASE_VALS"
+                # 1. Base values.yaml (Low Priority)
+                VALS_ARGS=""
+                if [ -f "$component_path/values.yaml" ]; then
+                    VALS_ARGS="-f $component_path/values.yaml"
                 fi
 
-                # 3. Add the environment-specific values (Higher Priority)
-                ENV_VALS="$ENV_VALUES_DIR/$name.yaml"
+                # 2. Environment/Tier values.yaml (High Priority)
+                # Aligns perfectly with nested path: e.g. values/sandbox/apps/don-erleone.yaml
+                ENV_VALS="$ENV_VALUES_DIR/$tier_name/$name.yaml"
                 if [ -f "$ENV_VALS" ]; then
-                    VALS_ARG="$VALS_ARG -f $ENV_VALS"
+                    VALS_ARGS="$VALS_ARGS -f $ENV_VALS"
+                    echo "   ❇️  Found tier override: $tier_name/$name.yaml"
                 fi
 
-                echo "Rendering $name into namespace $name..."
-
-                # Execute Helm template
+                echo "   📦 Templating: $name..."
+                
+                # Render the Helm chart
                 helm template "$name" "$component_path" \
-                    $VALS_ARG \
+                    $VALS_ARGS \
                     --namespace "$name" \
                     --output-dir "$RENDER_TMP"
 
+                # Move files to output directory
                 mkdir -p "$out/$tier_name/$name"
                 find "$RENDER_TMP" -name "*.yaml" -exec cp {} "$out/$tier_name/$name/" \;
+                
+                # Manual cleanup of temp directory
                 rm -rf "$RENDER_TMP"
+                trap - EXIT
             fi
         done
     fi
 done
 
+# Validate output
 if [ -z "$(find "$out" -name "*.yaml" -print -quit)" ]; then
     echo "❌ ERROR: No manifests were rendered."
     exit 1
 fi
+
+echo "=================================================="
+echo " ✅ Render complete: Manifests populated successfully."
+echo "=================================================="
