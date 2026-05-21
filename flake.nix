@@ -18,7 +18,7 @@
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = import nixpkgs { inherit system; };
-        
+
         serviceApps = all-apps.apps.${system};
       in
       {
@@ -30,7 +30,16 @@
 
         # Development Environment
         devShells = {
-          default = import ./shell.nix { inherit pkgs; };
+          default = import ./shell.nix {
+            inherit pkgs;
+            envName = "sandbox";
+            targetBranch = "sandbox";
+          };
+          prod = import ./shell.nix {
+            inherit pkgs;
+            envName = "prod";
+            targetBranch = "main";
+          };
         };
 
         # Automatic Code Formatter

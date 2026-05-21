@@ -20,3 +20,8 @@ headlessService:
 # MUST match the Erlang "Don Erleone" pod cookie
 config:
   releaseCookie: "agentic_brain_secret"
+
+httproute:
+  enabled: false
+  hostnames:
+    - chart-example.local

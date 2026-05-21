@@ -1,0 +1,4 @@
+httproute:
+  enabled: true
+  hostnames:
+    - chat.mydomain.com
