@@ -1,6 +1,7 @@
 # Don Erleone v0.0.1
 
 ![Logo](dashboard.png)
+<video src="wire-dashboard.mp4"/>
 
 **An Erlang/OTP agentic AI orchestrator with a Mafia-themed supervision hierarchy.**
 Exposes an OpenAI-compatible HTTP API, routes user prompts through a "reasoning" LLM,

@@ -21,5 +21,5 @@ sync-helm
 expose
 
 echo "=================================================="
-echo " 🎉 Swarm V2 Sandbox Deck is completely operational!"
+echo " 🎉 Swarm Sandbox Deck is completely operational!"
 echo "=================================================="

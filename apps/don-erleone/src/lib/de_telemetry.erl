@@ -47,4 +47,5 @@ handle_event(Event, Measurements, Metadata, _Config) ->
             metadata => Metadata
         })
     ),
+    pg:broadcast(swarm_dashboard_events, {telemetry_event, Event, Measurements, Metadata}),
     ok.

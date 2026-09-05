@@ -1,15 +1,16 @@
 <meta name="csrf-token" content={Plug.CSRFProtection.get_csrf_token()} />
-<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<title>Wire - Don Erleone</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=JetBrains+Mono:wght@400;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/css/swarm.css">
 
 <div class="cyber-grid"></div>
 <div class="scanlines"></div>
 
-<div class="swarm-wrapper">
+<div class="swarm-wrapper" data-theme={@theme}>
   <!-- Top Operational Deck Header -->
   <div class="deck-header">
     <h1 class="brand-title">
-      <svg style="width: 24px; height: 24px; fill: currentColor;" viewBox="0 0 24 24">
+      <svg style="width: 24px; height: 24px; fill: var(--theme-primary);" viewBox="0 0 24 24">
         <path d="M12 2L2 22h20L12 2zm0 3.99L19.53 19H4.47L12 5.99zM13 16h-2v2h2v-2zm0-6h-2v4h2v-4z"/>
       </svg>
       The Wire // Swarm V2 deck
@@ -17,160 +18,300 @@
 
     <div class="status-badge">
       <%= if @is_connected do %>
-        <span class="pulse-indicator" style="color: #00ff88; background-color: #00ff88;"></span>
-        <span style="color: #00ff88;">CLUSTERED WITH <%= @don_erleone_node %></span>
+        <span class="pulse-indicator" style="color: var(--theme-primary); background-color: var(--theme-primary);"></span>
+        <span style="color: var(--theme-primary);">CLUSTERED WITH <%= @don_erleone_node %></span>
       <% else %>
-        <span class="pulse-indicator" style="color: #ff9f0a; background-color: #ff9f0a;"></span>
-        <span style="color: #ff9f0a;">STANDALONE DECK (MOCK TELEMETRY)</span>
+        <span class="pulse-indicator" style="color: var(--theme-text-muted); background-color: var(--theme-text-muted);"></span>
+        <span style="color: var(--theme-text-muted);">STANDALONE DECK (MOCK TELEMETRY)</span>
+      <% end %>
+    </div>
+    <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+      <button phx-click="change_theme" phx-value-theme="default" class="deck-btn" style={if(@theme == "default", do: "border: 1px solid var(--theme-primary); box-shadow: 0 0 15px var(--theme-glow-strong);", else: "opacity: 0.6;")}>Cyber Gold</button>
+      <button phx-click="change_theme" phx-value-theme="matrix" class="deck-btn" style={if(@theme == "matrix", do: "border: 1px solid var(--theme-primary); box-shadow: 0 0 15px var(--theme-glow-strong);", else: "opacity: 0.6;")}>Matrix Green</button>
+      <button phx-click="change_theme" phx-value-theme="blood" class="deck-btn" style={if(@theme == "blood", do: "border: 1px solid var(--theme-primary); box-shadow: 0 0 15px var(--theme-glow-strong);", else: "opacity: 0.6;")}>Blood Red</button>
+      <button phx-click="change_theme" phx-value-theme="neon" class="deck-btn" style={if(@theme == "neon", do: "border: 1px solid var(--theme-primary); box-shadow: 0 0 15px var(--theme-glow-strong);", else: "opacity: 0.6;")}>Neon Punk</button>
+    </div>
+  </div>
+
+  <!-- TAB NAVIGATION -->
+  <div class="deck-tabs" style="display: flex; gap: 10px; margin-bottom: 20px; border-bottom: none; padding-bottom: 14px; overflow-x: auto; position: relative;">
+    <button phx-click="change_tab" phx-value-tab="overview" class={"deck-btn " <> if(@active_tab == "overview", do: "active", else: "")} style={if(@active_tab == "overview", do: "background: var(--theme-bg-accent); border-color: var(--theme-primary); color: var(--theme-primary); box-shadow: 0 0 10px var(--theme-glow-strong);", else: "background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.2); color: var(--theme-text-muted);")}>Overview</button>
+    <button phx-click="change_tab" phx-value-tab="swarm_map" class={"deck-btn " <> if(@active_tab == "swarm_map", do: "active", else: "")} style={if(@active_tab == "swarm_map", do: "background: var(--theme-bg-accent); border-color: var(--theme-primary); color: var(--theme-primary); box-shadow: 0 0 10px var(--theme-glow-strong);", else: "background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.2); color: var(--theme-text-muted);")}>Swarm Map</button>
+    <button phx-click="change_tab" phx-value-tab="missions" class={"deck-btn " <> if(@active_tab == "missions", do: "active", else: "")} style={if(@active_tab == "missions", do: "background: var(--theme-bg-accent); border-color: var(--theme-primary); color: var(--theme-primary); box-shadow: 0 0 10px var(--theme-glow-strong);", else: "background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.2); color: var(--theme-text-muted);")}>Missions</button>
+    <button phx-click="change_tab" phx-value-tab="cluster" class={"deck-btn " <> if(@active_tab == "cluster", do: "active", else: "")} style={if(@active_tab == "cluster", do: "background: var(--theme-bg-accent); border-color: var(--theme-primary); color: var(--theme-primary); box-shadow: 0 0 10px var(--theme-glow-strong);", else: "background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.2); color: var(--theme-text-muted);")}>Cluster & Vitals</button>
+    <div style="position: absolute; bottom: 0; left: 0; right: 0; height: 1px; background: linear-gradient(90deg, transparent, var(--theme-border-medium), transparent);"></div>
+  </div>
+  <!-- CONTENT AREA -->
+  
+  <%= if @active_tab == "overview" do %>
+    <div id="mini-viz-container" class="glass-card" style="height: 250px; margin-bottom: 20px; padding: 0;" phx-update="ignore">
+      <div id="mini-swarm-viz" phx-hook="SwarmEChartsViz" style="width: 100%; height: 100%;"></div>
+    </div>
+  <% end %>
+  
+  <%= if @active_tab == "swarm_map" do %>
+    <div id="full-viz-container" class="glass-card" style="height: 600px; margin-bottom: 20px; padding: 0;" phx-update="ignore">
+      <div id="full-swarm-viz" phx-hook="SwarmEChartsViz" style="width: 100%; height: 100%;"></div>
+    </div>
+  <% end %>
+
+  <%= if @active_tab in ["overview", "swarm_map"] do %>
+    <div class="agent-pool-flex">
+      <.pool_card title="Consigliere Pool (Reasoning Agents)" pool={@consigliere} type={:gold} />
+      <.pool_card title="Caporegime Pool (Execution Agents)" pool={@caporegime} type={:green} />
+      
+      <%= if @active_tab == "overview" do %>
+        <div class="glass-card">
+          <div class="pool-title">
+            <span>Orchestrator System Vitals</span>
+            <span style="font-size: 11px; color: var(--theme-primary); font-family: 'JetBrains Mono', monospace; background: var(--theme-bg-accent); padding: 2px 6px; border-radius: 4px; border: 1px solid var(--theme-border-light)">REAL-TIME</span>
+          </div>
+          <div style="margin-top: 10px;">
+            <div class="vital-row"><span class="vital-label">BEAM Allocated Memory</span><span class="vital-value"><%= @system_vitals.memory_bytes %></span></div>
+            <div class="vital-row"><span class="vital-label">Active Processes count</span><span class="vital-value"><%= @system_vitals.process_count %></span></div>
+            <div class="vital-row"><span class="vital-label">Scheduler Run Queue</span><span class="vital-value"><%= @system_vitals.run_queue %></span></div>
+          </div>
+        </div>
+      <% end %>
+    </div>
+  <% end %>
+
+  <%= if @active_tab in ["overview", "cluster"] do %>
+    <%= if @active_tab == "cluster" do %>
+      <div class="agent-pool-flex" style="margin-bottom: 20px;">
+        <div class="glass-card">
+          <div class="pool-title">
+            <span>Orchestrator System Vitals</span>
+          </div>
+          <div style="margin-top: 10px;">
+            <div class="vital-row"><span class="vital-label">BEAM Allocated Memory</span><span class="vital-value"><%= @system_vitals.memory_bytes %></span></div>
+            <div class="vital-row"><span class="vital-label">Active Processes count</span><span class="vital-value"><%= @system_vitals.process_count %></span></div>
+            <div class="vital-row"><span class="vital-label">Scheduler Run Queue</span><span class="vital-value"><%= @system_vitals.run_queue %></span></div>
+          </div>
+        </div>
+        <div class="glass-card">
+          <div class="pool-title">
+            <span>BEAM Cluster nodes</span>
+          </div>
+          <div style="margin-top: 14px;">
+            <%= for node_name <- @nodes do %>
+              <.node_chip node_name={node_name} current_node={node()} />
+            <% end %>
+          </div>
+        </div>
+      </div>
+    <% end %>
+  <% end %>
+
+  <div class="dashboard-grid">
+    <!-- Left Column -->
+    <div style="display: flex; flex-direction: column; gap: 20px;">
+      <%= if @active_tab in ["overview", "missions"] do %>
+        <div class="glass-card">
+          <div class="pool-title">
+            <span>Mission execution control</span>
+          </div>
+          <form phx-submit="submit_mission" phx-change="mission_change">
+            <input type="text" name="prompt" value={@mission_prompt} placeholder="Enter a directive for the swarm..." class="form-input" autocomplete="off" disabled={@execution_status == :processing} />
+            <div style="display: flex; gap: 12px;">
+              <button type="submit" class="deck-btn" disabled={@execution_status == :processing or @mission_prompt == ""}>
+                <%= if @execution_status == :processing do %>
+                  Executing consult...
+                <% else %>
+                  Deploy mission
+                <% end %>
+              </button>
+              <%= if @execution_status != :idle do %>
+                <button type="button" phx-click="clear_mission" class="deck-btn" style="background: rgba(255, 255, 255, 0.08); color: var(--theme-text); border: 1px solid var(--theme-border-light);">Reset</button>
+              <% end %>
+            </div>
+          </form>
+          <%= if @execution_result do %>
+            <div style="margin-top: 20px; background: var(--theme-console-bg); border: 1px solid var(--theme-border-medium); border-radius: 8px; padding: 14px; font-family: 'JetBrains Mono', monospace;">
+              <pre style="font-size: 13px; color: var(--theme-console-text); text-shadow: 0 0 5px var(--theme-console-glow); margin: 0; white-space: pre-wrap; word-break: break-all; line-height: 1.5;"><%= @execution_result %></pre>
+            </div>
+          <% end %>
+        </div>
+      <% end %>
+
+      <%= if @active_tab == "overview" do %>
+        <div class="glass-card">
+          <div class="pool-title">
+            <span>Swarm Missions Ledger</span>
+          </div>
+          <div style="margin-top: 14px;">
+            <%= if Enum.empty?(@missions) do %>
+              <div style="padding: 24px 0; text-align: center; color: var(--theme-text-dark); font-size: 14px;">No active missions found.</div>
+            <% else %>
+              <%= for mission <- @missions do %>
+                <.mission_card mission={mission} />
+              <% end %>
+            <% end %>
+          </div>
+        </div>
+      <% end %>
+      
+      <%= if @active_tab == "cluster" do %>
+        <div class="glass-card" style="height: 80vh;">
+          <div class="pool-title">
+            <span>Operational Signals Feed</span>
+          </div>
+          <div class="log-console" style="margin-top: 14px; height: calc(100% - 40px);">
+            <%= for log <- @logs do %>
+              <div class="log-line">
+                <span class="timestamp-col">[<%= log.time %>]</span>
+                <span><%= log.msg %></span>
+              </div>
+            <% end %>
+          </div>
+        </div>
+      <% end %>
+    </div>
+
+    <!-- Right Column -->
+    <div style="display: flex; flex-direction: column; gap: 20px;">
+      <%= if @active_tab == "overview" do %>
+        <div class="glass-card">
+          <div class="pool-title">
+            <span>BEAM Cluster nodes</span>
+          </div>
+          <div style="margin-top: 14px;">
+            <%= for node_name <- @nodes do %>
+              <.node_chip node_name={node_name} current_node={node()} />
+            <% end %>
+          </div>
+        </div>
+      <% end %>
+
+      <%= if @active_tab == "overview" do %>
+        <div class="glass-card">
+          <div class="pool-title">
+            <span>Operational Signals Feed</span>
+          </div>
+          <div class="log-console" style="margin-top: 14px;">
+            <%= for log <- @logs do %>
+              <div class="log-line">
+                <span class="timestamp-col">[<%= log.time %>]</span>
+                <span><%= log.msg %></span>
+              </div>
+            <% end %>
+          </div>
+        </div>
+      <% end %>
+
+      <%= if @active_tab == "missions" do %>
+        <div class="glass-card">
+          <div class="pool-title">
+            <span>Swarm Missions Ledger</span>
+          </div>
+          <div style="margin-top: 14px;">
+            <%= if Enum.empty?(@missions) do %>
+              <div style="padding: 24px 0; text-align: center; color: var(--theme-text-dark); font-size: 14px;">No active missions found.</div>
+            <% else %>
+              <%= for mission <- @missions do %>
+                <.mission_card mission={mission} />
+              <% end %>
+            <% end %>
+          </div>
+        </div>
       <% end %>
     </div>
   </div>
-
-  <!-- Agent Pool & Orchestrator Vitals Grid (Top Tier Columns) -->
-  <div class="agent-pool-flex">
-    <!-- Consigliere (Reasoning Agents) Card -->
-    <.pool_card title="Consigliere Pool (Reasoning Agents)" pool={@consigliere} type={:gold} />
-
-    <!-- Caporegime (Execution Agents) Card -->
-    <.pool_card title="Caporegime Pool (Execution Agents)" pool={@caporegime} type={:green} />
-
-    <!-- System Vitals (Real-time Erlang Metrics) -->
-    <div class="glass-card">
-      <div class="pool-title">
-        <span>Orchestrator System Vitals</span>
-        <span style="font-size: 11px; color: #00ff88; font-family: 'JetBrains Mono', monospace; background: rgba(0,255,136,0.1); padding: 2px 6px; border-radius: 4px; border: 1px solid rgba(0,255,136,0.15)">
-          REAL-TIME
-        </span>
-      </div>
-
-      <div style="margin-top: 10px;">
-        <div class="vital-row">
-          <span class="vital-label">BEAM Allocated Memory</span>
-          <span class="vital-value"><%= @system_vitals.memory_bytes %></span>
-        </div>
-
-        <div class="vital-row">
-          <span class="vital-label">Active Processes count</span>
-          <span class="vital-value"><%= @system_vitals.process_count %></span>
-        </div>
-
-        <div class="vital-row">
-          <span class="vital-label">Scheduler Run Queue</span>
-          <span class="vital-value"><%= @system_vitals.run_queue %></span>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Main Operational Dashboard Layout Grid -->
-  <div class="dashboard-grid">
-
-    <!-- Left Side: Live Swarm Missions and Interactive Test -->
-    <div>
-      <!-- Mission Execution Suite -->
-      <div class="glass-card">
-        <h3 style="margin-top: 0; font-weight: 800; text-transform: uppercase; font-size: 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.05); padding-bottom: 10px; color: #ffd700;">
-          Mission execution control
-        </h3>
-
-        <form phx-submit="submit_mission" phx-change="mission_change">
-          <input type="text"
-                 name="prompt"
-                 value={@mission_prompt}
-                 placeholder="Enter a directive for the swarm (e.g. 'Deploy pod in namespace test')..."
-                 class="form-input"
-                 autocomplete="off"
-                 disabled={@execution_status == :processing} />
-
-          <div style="display: flex; gap: 12px;">
-            <button type="submit" class="deck-btn" disabled={@execution_status == :processing or @mission_prompt == ""}>
-              <%= if @execution_status == :processing do %>
-                <svg style="animation: spin 1s linear infinite; width: 16px; height: 16px; margin-right: 4px;" fill="none" viewBox="0 0 24 24">
-                  <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" style="opacity: 0.25;"></circle>
-                  <path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-                </svg>
-                Executing consult...
-              <% else %>
-                Deploy mission
-              <% end %>
-            </button>
-
-            <%= if @execution_status != :idle do %>
-              <button type="button" phx-click="clear_mission" class="deck-btn" style="background: rgba(255, 255, 255, 0.08); color: #fff; border: 1px solid rgba(255, 255, 255, 0.15);">
-                Reset
-              </button>
-            <% end %>
-          </div>
-        </form>
-
-        <%= if @execution_result do %>
-          <div style="margin-top: 20px; background: rgba(3, 4, 6, 0.95); border: 1px solid rgba(212, 175, 55, 0.25); border-radius: 8px; padding: 14px; font-family: 'JetBrains Mono', monospace;">
-            <span style="font-weight: 800; font-size: 12px; text-transform: uppercase; color: #ffd700; display: block; margin-bottom: 6px; border-bottom: 1px solid rgba(255, 255, 255, 0.05); padding-bottom: 4px;">
-              Mission Execution Payload
-            </span>
-            <pre style="font-size: 13px; color: #33ff33; margin: 0; white-space: pre-wrap; word-break: break-all; line-height: 1.5;"><%= @execution_result %></pre>
-          </div>
-        <% end %>
-      </div>
-
-      <!-- Active & Recent Swarm Missions -->
-      <div class="glass-card">
-        <h3 style="margin-top: 0; font-weight: 800; text-transform: uppercase; font-size: 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.05); padding-bottom: 10px; color: #ffd700;">
-          Swarm Missions Ledger (Mnesia Real-time Sync)
-        </h3>
-
-        <div style="margin-top: 14px;">
-          <%= if Enum.empty?(@missions) do %>
-            <div style="padding: 24px 0; text-align: center; color: #718096; font-size: 14px;">
-              No active missions found in Mnesia ledger.
-            </div>
-          <% else %>
-            <%= for mission <- @missions do %>
-              <.mission_card mission={mission} />
-            <% end %>
-          <% end %>
-        </div>
-      </div>
-    </div>
-
-    <!-- Right Side: BEAM Nodes and System Feeds -->
-    <div>
-      <!-- BEAM Cluster Topology Nodes -->
-      <div class="glass-card">
-        <h3 style="margin-top: 0; font-weight: 800; text-transform: uppercase; font-size: 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.05); padding-bottom: 10px; color: #ffd700;">
-          BEAM Cluster nodes
-        </h3>
-
-        <div style="margin-top: 14px;">
-          <%= for node_name <- @nodes do %>
-            <.node_chip node_name={node_name} current_node={node()} />
-          <% end %>
-        </div>
-      </div>
-
-      <!-- Real-Time Operational Signals Feed -->
-      <div class="glass-card">
-        <h3 style="margin-top: 0; font-weight: 800; text-transform: uppercase; font-size: 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.05); padding-bottom: 10px; color: #ffd700;">
-          Operational Signals Feed
-        </h3>
-
-        <div class="log-console" style="margin-top: 14px;">
-          <%= for log <- @logs do %>
-            <div class="log-line">
-              <span class="timestamp-col">[<%= log.time %>]</span>
-              <span><%= log.msg %></span>
-            </div>
-          <% end %>
-        </div>
-      </div>
-    </div>
-
-  </div>
 </div>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/phoenix@1.8.7/priv/static/phoenix.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/phoenix_live_view@1.1.30/priv/static/phoenix_live_view.min.js"></script>
 <script>
+  let Hooks = {};
+
+  Hooks.SwarmEChartsViz = {
+    mounted() {
+      // Initialize ECharts instance
+      this.chart = echarts.init(this.el);
+      
+      const option = {
+        backgroundColor: 'transparent',
+        tooltip: {},
+        series: [{
+          type: 'graph',
+          layout: 'force',
+          roam: true,
+          label: { show: true, position: 'right', color: '#e2e8f0', fontSize: 10 },
+          edgeSymbol: ['none', 'arrow'],
+          edgeSymbolSize: [0, 8],
+          force: { repulsion: 120, edgeLength: 60 },
+          data: [],
+          links: [],
+          lineStyle: { opacity: 0.5, width: 2, curveness: 0 }
+        }]
+      };
+      
+      this.chart.setOption(option);
+
+      // Listen for updates from LiveView
+      const renderChart = (data) => {
+        let wrapper = document.querySelector('.swarm-wrapper') || document.documentElement;
+        let rootStyles = getComputedStyle(wrapper);
+        let primaryColor = rootStyles.getPropertyValue('--theme-primary').trim() || '#ffd700';
+        let darkColor = rootStyles.getPropertyValue('--theme-primary-dark').trim() || '#d4af37';
+        let textColor = rootStyles.getPropertyValue('--theme-text').trim() || '#ffffff';
+        let activeColor = rootStyles.getPropertyValue('--theme-console-text').trim() || '#00ff88';
+        let warningColor = rootStyles.getPropertyValue('--theme-border-strong').trim() || '#ff3333';
+        
+        let renderedNodes = data.nodes.map(n => {
+          let style = { color: textColor };
+          let size = 15;
+          let symbol = 'circle';
+          
+          if(n.name === "de_sup") {
+            style = { color: primaryColor, shadowBlur: 20, shadowColor: primaryColor };
+            size = 35;
+            symbol = 'diamond';
+          } else if(n.type === "supervisor") {
+            style = { color: textColor, shadowBlur: 10, shadowColor: textColor };
+            size = 25;
+          } else if(n.type === "worker") {
+            style = { color: warningColor };
+            size = 15;
+          } else if(n.type === "pool_active") {
+            style = { color: activeColor, shadowBlur: 10, shadowColor: activeColor };
+            size = 15;
+          } else if(n.type === "pool_idle") {
+            style = { color: darkColor };
+            size = 10;
+          }
+          return { id: n.id, name: n.name, symbolSize: size, itemStyle: style, symbol: symbol };
+        });
+
+        this.chart.setOption({
+          series: [{
+            data: renderedNodes,
+            links: data.links,
+            lineStyle: { color: primaryColor, opacity: 0.3, width: 2, curveness: 0 }
+          }]
+        });
+      };
+
+      this.handleEvent("update_echarts_nodes", (data) => {
+        this.lastData = data;
+        renderChart(data);
+      });
+
+      this.handleEvent("theme_changed", () => {
+        setTimeout(() => {
+          if (this.lastData) renderChart(this.lastData);
+        }, 100);
+      });
+
+      // Handle resize
+      window.addEventListener('resize', () => { this.chart.resize(); });
+    }
+  };
+
   let csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content");
-  let liveSocket = new window.LiveView.LiveSocket("/live", window.Phoenix.Socket, {params: {_csrf_token: csrfToken}});
+  let liveSocket = new window.LiveView.LiveSocket("/live", window.Phoenix.Socket, {
+    params: {_csrf_token: csrfToken},
+    hooks: Hooks
+  });
   liveSocket.connect();
 </script>

@@ -6,6 +6,10 @@ defmodule Wire.Application do
 
   use Application
 
+  def version do
+    Application.spec(:wire, :vsn) |> to_string()
+  end
+
   @impl true
   @spec start(Application.start_type(), term()) :: {:ok, pid()} | {:error, term()}
   def start(_type, _args) do

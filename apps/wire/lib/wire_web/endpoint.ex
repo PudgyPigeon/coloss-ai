@@ -9,7 +9,7 @@ defmodule WireWeb.Endpoint do
     signing_salt: "SomethingRandomAndSecret"
   ]
 
-  socket "/live", Phoenix.LiveView.Socket, websocket: [connect_info: [session: @session_options]]
+  socket("/live", Phoenix.LiveView.Socket, websocket: [connect_info: [session: @session_options]])
 
   plug(Plug.Static, at: "/", from: :wire, gzip: false)
   plug(Plug.RequestId)

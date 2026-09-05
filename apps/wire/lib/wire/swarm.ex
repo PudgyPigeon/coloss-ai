@@ -51,6 +51,18 @@ defmodule Wire.Swarm do
   end
 
   @doc """
+  Fetches the true dynamic BEAM supervision tree from the orchestrator.
+  """
+  @spec get_supervision_tree(node()) :: map()
+  def get_supervision_tree(node \\ discover_node()) do
+    case :rpc.call(node, :de_dashboard_api, :get_supervision_tree, []) do
+      {:badrpc, _} -> default_tree()
+      tree when is_map(tree) -> tree
+      _ -> default_tree()
+    end
+  end
+
+  @doc """
   Dispatches a new reasoning or simulation mission request asynchronously to the
   Don Erleone orchestrator's reasoning pool.
   """
@@ -83,8 +95,8 @@ defmodule Wire.Swarm do
     vitals = metrics.system_vitals
 
     formatted_vitals = %{
-      vitals |
-      memory_bytes: format_memory(vitals.memory_bytes)
+      vitals
+      | memory_bytes: format_memory(vitals.memory_bytes)
     }
 
     %{
@@ -128,6 +140,16 @@ defmodule Wire.Swarm do
         status: :offline
       },
       system_vitals: %{memory_bytes: 0, process_count: 0, run_queue: 0}
+    }
+  end
+
+  @spec default_tree() :: map()
+  defp default_tree do
+    %{
+      nodes: [
+        %{id: "de_sup", name: "de_sup (offline)", type: "supervisor"}
+      ],
+      links: []
     }
   end
 

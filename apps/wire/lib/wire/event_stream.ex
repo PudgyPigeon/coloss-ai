@@ -23,6 +23,7 @@ defmodule Wire.EventStream do
       pids when is_list(pids) ->
         Enum.each(pids, &send(&1, {:mission_event, action, mission_id}))
         :ok
+
       _ ->
         :ok
     end

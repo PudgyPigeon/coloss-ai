@@ -211,10 +211,11 @@ modify_mission(Id, UpdateFun) ->
         end
     end,
     case handle_transaction(mnesia:transaction(Trans), Id) of
-        ok -> 
+        ok ->
             broadcast_event(updated, Id),
             ok;
-        Err -> Err
+        Err ->
+            Err
     end.
 
 -spec execute_write(mission(), integer()) ->
@@ -229,7 +230,8 @@ execute_write(Record, Id) ->
         {ok, ReturnedId} ->
             broadcast_event(created, ReturnedId),
             {ok, ReturnedId};
-        Err -> Err
+        Err ->
+            Err
     end.
 
 -spec handle_write_result(

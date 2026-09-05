@@ -1,6 +1,6 @@
 defmodule WireWeb.SwarmDashboardLive do
   @moduledoc """
-  Phoenix LiveView controller logic for the Swarm V2 real-time monitoring console.
+  Phoenix LiveView controller logic for the Swarm real-time monitoring console.
   Delegates all presentation formatting, metrics aggregation, and data mapping to
   the `Wire.Swarm` domain context, keeping this module purely focused on state-handling.
   """
@@ -22,9 +22,14 @@ defmodule WireWeb.SwarmDashboardLive do
       |> assign(:mission_prompt, "")
       |> assign(:execution_status, :idle)
       |> assign(:execution_result, nil)
-      |> assign(:logs, [])
-      |> log_event("SYSTEM: Swarm V2 deck online. Real-time push streams enabled.")
-      |> log_event("SYSTEM: Subscribed to Distributed Erlang process group 'swarm_dashboard_events'.")
+      |> assign(:mission_logs, [])
+      |> assign(:telemetry_logs, [])
+      |> assign(:active_tab, "overview")
+      |> assign(:theme, "default")
+      |> log_event("SYSTEM: Swarm V#{Wire.Application.version()} deck online. Real-time push streams enabled.")
+      |> log_event(
+        "SYSTEM: Subscribed to Distributed Erlang process group 'swarm_dashboard_events'."
+      )
       |> update_stats()
 
     {:ok, socket}
@@ -37,6 +42,19 @@ defmodule WireWeb.SwarmDashboardLive do
           {:noreply, Phoenix.LiveView.Socket.t()}
   def handle_event("mission_change", %{"prompt" => prompt}, socket) do
     {:noreply, assign(socket, :mission_prompt, prompt)}
+  end
+
+  @impl true
+  def handle_event("change_tab", %{"tab" => tab}, socket) do
+    {:noreply, assign(socket, :active_tab, tab)}
+  end
+
+  @impl true
+  def handle_event("change_theme", %{"theme" => theme}, socket) do
+    {:noreply,
+     socket
+     |> assign(:theme, theme)
+     |> push_event("theme_changed", %{theme: theme})}
   end
 
   @impl true
@@ -89,8 +107,19 @@ defmodule WireWeb.SwarmDashboardLive do
   def handle_info({:mission_event, action, mission_id}, socket) do
     {:noreply,
      socket
-     |> log_event("TELEMETRY PUSH: Mission ##{mission_id} was #{action} instantly in don-erleone.")
+     |> log_event(
+       "TELEMETRY PUSH: Mission ##{mission_id} was #{action} instantly in don-erleone."
+     )
      |> update_stats()}
+  end
+
+  @impl true
+  def handle_info({:telemetry_event, event, measurements metadata}, socket) do
+    event_name = Enum.join(event, "")
+    measurements_str = inspect(measurements)
+    metadata_str = inspect(metadata, limit: 5, printable_list: 100)
+    msg = "TELEMETRY: [#{event_name} | Metrics: #{measurements_str} | Metadata: #{metadata_str}}]"
+    {:noreply, log_event(socket, msg)}
   end
 
   @impl true
@@ -156,7 +185,12 @@ defmodule WireWeb.SwarmDashboardLive do
 
   @spec update_stats(Phoenix.LiveView.Socket.t()) :: Phoenix.LiveView.Socket.t()
   defp update_stats(socket) do
-    assign(socket, Wire.Swarm.get_dashboard_data())
+    data = Wire.Swarm.get_dashboard_data()
+    tree = Wire.Swarm.get_supervision_tree()
+
+    socket
+    |> assign(data)
+    |> push_event("update_echarts_nodes", tree)
   end
 
   @spec log_event(Phoenix.LiveView.Socket.t(), String.t()) :: Phoenix.LiveView.Socket.t()

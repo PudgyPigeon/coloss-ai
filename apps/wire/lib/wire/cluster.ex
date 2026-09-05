@@ -49,11 +49,17 @@ defmodule Wire.ClusterConnector do
     hosts = get_epmd_hosts()
 
     if hosts != [] and System.get_env("DOCKER_COMPOSE") == "true" do
-      Logger.info("[ClusterConnector] EPMD topology detected in Compose. Activating connection polling.")
+      Logger.info(
+        "[ClusterConnector] EPMD topology detected in Compose. Activating connection polling."
+      )
+
       schedule_check()
       {:ok, %{hosts: hosts}}
     else
-      Logger.debug("[ClusterConnector] Standalone or Kubernetes environment detected. Polling disabled.")
+      Logger.debug(
+        "[ClusterConnector] Standalone or Kubernetes environment detected. Polling disabled."
+      )
+
       {:ok, %{hosts: []}}
     end
   end
@@ -64,6 +70,7 @@ defmodule Wire.ClusterConnector do
     for host <- state.hosts do
       unless host in Node.list() do
         Logger.info("[ClusterConnector] Attempting to connect to remote node: #{inspect(host)}")
+
         case Node.ping(host) do
           :pong -> Logger.info("[ClusterConnector] Successfully connected to #{inspect(host)}")
           :pang -> Logger.debug("[ClusterConnector] Host #{inspect(host)} is not reachable yet.")
