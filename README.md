@@ -1,7 +1,5 @@
 # Architecture
 
-## 2. High-Level Architecture Diagram
-
 ```text
 +-----------------------------------------------------------------------------------------+
 |                                    User / Developer                                     |
