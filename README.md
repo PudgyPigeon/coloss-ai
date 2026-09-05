@@ -51,6 +51,19 @@
 |     ( K8s API )                                                                         |
 +=========================================================================================+
 ```
+# Distributed Agent Cluster (Nix + Erlang + Haskell + K8s)
+
+> **Project Status:** Archived / Exploration (Active dev through early 2026).  
+> Built as a proof-of-concept for running resilient BEAM-based agent runtimes 
+> alongside Haskell MCP tools on a GitOps-managed Kubernetes cluster with local GPU acceleration.
+
+### Core Stack
+- **Reproducibility:** Nix flakes for deterministic developer shells & builds
+- **Orchestration:** Minikube + Helm + ArgoCD GitOps
+- **Agent Runtime:** Custom Erlang/OTP agent framework
+- **Tool Protocol:** Haskell MCP (Model Context Protocol) server
+- **Local Inference:** Ollama with Kubernetes GPU passthrough
+- **UI:** Elixir / Phoenix LiveView via RPC calls to BEAM VM 
 
 # NOTE!
 There may be drift between the apps microservices in this monorepo and other public microservice repos. 
