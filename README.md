@@ -1,5 +1,8 @@
 # Architecture
-High-Level Architecture Diagram
+
+## 2. High-Level Architecture Diagram
+
+```text
 +-----------------------------------------------------------------------------------------+
 |                                    User / Developer                                     |
 |                                    ( runs 'up' )                                        |
@@ -49,7 +52,7 @@ High-Level Architecture Diagram
 |           v   (queries)                                                                 |
 |     ( K8s API )                                                                         |
 +=========================================================================================+
-
+```
 
 # NOTE!
 There may be drift between the apps microservices in this monorepo and other public microservice repos. 
