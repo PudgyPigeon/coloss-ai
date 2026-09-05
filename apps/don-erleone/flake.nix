@@ -100,8 +100,8 @@
             Entrypoint = [ "${run-script}/bin/don-erleone-runner" ];
             WorkingDir = "/data";
             ExposedPorts = {
-              "4369/tcp" = {}; # EPMD
-              "8080/tcp" = {}; # API
+              "4369/tcp" = { }; # EPMD
+              "8080/tcp" = { }; # API
             };
             User = "1000";
             Env = [

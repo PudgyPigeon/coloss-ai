@@ -1,0 +1,9 @@
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 4000
+
+httproute:
+  enabled: true
+  hostnames:
+    - swarm.mydomain.com

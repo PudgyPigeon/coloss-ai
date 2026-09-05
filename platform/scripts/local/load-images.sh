@@ -1,14 +1,16 @@
 #!/usr/bin/env bash
-set -e
+set -euo pipefail
+
+# Connect Docker client to Minikube daemon
 eval $(minikube docker-env)
 
-if [ -z "$IMAGE_LOAD_COMMANDS" ]; then
-  echo "⚠️  No image load commands configured. Skipping image build/load."
+if [ -z "${IMAGE_LOAD_COMMANDS:-""}" ]; then
+  echo "⚠️  No image load commands configured. Skipping image builds."
   exit 0
 fi
 
 echo "📦 Running project-specific image load commands..."
-# Execute the commands passed from Nix
-eval "$IMAGE_LOAD_COMMANDS"
+# Safely execute the build commands in Minikube's Docker runtime
+eval "${IMAGE_LOAD_COMMANDS}"
 
-echo "✅ All custom images loaded into Minikube!"
+echo "✅ Success: All Swarm container images loaded."

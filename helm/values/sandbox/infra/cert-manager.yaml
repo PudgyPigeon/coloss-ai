@@ -1,0 +1,20 @@
+# Pass values to the sub-chart (upstream cert-manager)
+cert-manager:
+  installCRDs: true
+  replicaCount: 1
+  resources:
+    limits:
+      cpu: 100m
+      memory: 128Mi
+    requests:
+      cpu: 10m
+      memory: 64Mi
+
+# Custom values for your wrapper chart logic
+global:
+  env: "sandbox"
+
+clusterIssuer:
+  name: "local-issuer"
+  email: "admin@example.com"
+  # No email or server needed because 'env: sandbox' triggers the 'selfSigned: {}' block

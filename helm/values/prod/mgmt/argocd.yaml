@@ -1,0 +1,24 @@
+env: "prod"
+repoType: "git"
+
+global:
+  namespace: "argocd"
+  # In Prod, these usually point to your "State/Control" repository
+  # This is the repo where Nix/CI pushes the hydrated YAMLs.
+  repoURL: "https://github.com/your-org/infra-state.git"
+  gitRepo: "https://github.com/your-org/infra-state.git"
+  targetRevision: "main"
+  clusterServer: "https://kubernetes.default.svc"
+  # The path where the Root-App starts looking
+  sourcePath: "argocd-manifests"
+
+infra:
+  projectName: "infra-project"
+  # In Prod, we don't list apps! The ApplicationSet uses the 'git' generator
+  # to find every folder in 'infra/' automatically.
+  path: "infra/*"
+
+apps:
+  projectName: "apps-project"
+  # Likewise, developers just add a folder to 'apps/' in the state repo
+  path: "apps/*"

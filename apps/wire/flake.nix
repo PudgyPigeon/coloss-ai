@@ -80,10 +80,10 @@
 
           layers = [
             (n2c.buildLayer {
-              deps = [ 
+              deps = [
                 (pkgs.busybox.override { enableAppletSymlinks = true; })
                 pkgs.glibc
-                elixirApp 
+                elixirApp
               ];
             })
           ];

@@ -25,6 +25,7 @@ Create a default fully qualified app name.
 Selector labels
 */}}
 {{- define "don-erleone.selectorLabels" -}}
+app: {{ include "don-erleone.name" . }}
 app.kubernetes.io/name: {{ include "don-erleone.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}

@@ -1,35 +1,41 @@
-{ pkgs }:
+{ pkgs, envName ? "sandbox", targetBranch ? "sandbox" }:
 let
-  # --- Configuration ---
+  # --- Central Sandbox Specification ---
   config = {
-    clusterName = "sandbox-cluster";
-    gitServiceName = "sandbox-gitea";
+    clusterName = "${envName}-cluster";
+    gitServiceName = "${envName}-gitea";
     gitPort = "3000";
     gitUser = "admin";
     gitPass = "placeholder";
-    cpuCount = toString 4;
-    memCount = toString 20000;
-    nodeCount = toString 1;
+    cpuCount = "4";
+    memCount = "20000";
+    nodeCount = "1";
     openWebUiDestPort = "9000";
     openWebUiSourcePort = "8080";
     argoCdNamespace = "argocd";
     argocdLocalPort = "8888";
     argocdSvcPort = "443";
+    wireLocalPort = "4000";
+    wireSvcPort = "4000";
+    targetBranch = targetBranch;
+    envName = envName;
   };
 
-  # Load-images
+  # --- Application Container Split-Loaders ---
   swarmApps = {
     kubernetes-mcp-load = "kubernetes-mcp";
-    don-erleone-load    = "don-erleone";
-    wire-load           = "wire";
+    don-erleone-load = "don-erleone";
+    wire-load = "wire";
   };
-  mkLoadCommand = attr: img: 
-    "echo '🚀 Refreshing ${img}...'; " +
+
+  mkLoadCommand = attr: img:
+    "echo '🚀 Re-building ${img} derivation...'; " +
     "nix run ./apps#${attr} && " +
     "kubectl delete deployment --all -n ${img} --ignore-not-found=true && " +
-    "echo '🚀 Loading ${img} into Minikube...'; " +
+    "echo '🚀 Injecting OCI layer ${img} into Minikube...'; " +
     "minikube image load ${img}:latest --overwrite=true";
 
+  # --- Platform Imports ---
   platform = import ./platform {
     inherit pkgs config;
     helmSource = ./helm;
@@ -39,20 +45,19 @@ let
 in
 pkgs.mkShell {
   buildInputs = platform.dependencies ++ (builtins.attrValues platform.scripts);
-  # Note: It looks like it's not formatted correctly below but when you run 'nix develop' the box is lined up
-  # so best left alone for aesthetics
+
   shellHook = ''
     export KUBECONFIG="$HOME/.kube/config"
 
-    # Check if infra is actually up
+    # Inspect Minikube hypervisor lifecycle state
     CLUSTER_STATUS=$(minikube status --format='{{.Host}}' 2>/dev/null | grep "Running" || true)
 
     echo -e "\n\033[1;36m┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓ \033[0m"
     if [[ -n "$CLUSTER_STATUS" ]]; then
-        echo -e "\033[1;36m┃ 🚀 Sandbox Shell: \033[1;32mONLINE\033[1;36m                              ┃\033[0m"
+        echo -e "\033[1;36m┃ 🚀 ${config.envName} Shell: \033[1;32mONLINE\033[1;36m                              ┃\033[0m"
         echo -e "\033[1;36m┃ ArgoCD: localhost:${config.argocdLocalPort}                                ┃\033[0m"
     else
-        echo -e "\033[1;36m┃ 🚀 Sandbox Shell: \033[1;33mREADY TO START\033[1;36m                      ┃\033[0m"
+        echo -e "\033[1;36m┃ 🚀 ${config.envName} Shell: \033[1;33mREADY TO START\033[1;36m                      ┃\033[0m"
     fi
     echo -e "\033[1;36m┃ Run '\033[1;32mup\033[1;36m' to provision your local infrastructure.      ┃\033[0m"
     echo -e "\033[1;36m┃ Type '\033[1;33msandbox-help\033[1;36m' to see available commands.        ┃\033[0m"

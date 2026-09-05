@@ -1,14 +1,11 @@
 {
-  description = "Rootless Minikube devShell with Haskell MCP";
+  description = "Refactored Swarm Deck Development Shell & Platform Engine";
 
   inputs = {
-
-    # External inputs
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
     just.url = "github:casey/just";
 
-    # This repo's internal inputs / microservices / apps
     all-apps = {
       url = "path:./apps";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -17,34 +14,35 @@
     };
   };
 
-  outputs =
-    { self
-    , nixpkgs
-    , flake-utils
-    , just
-    , all-apps
-    ,
-    } @ inputs:
-    flake-utils.lib.eachDefaultSystem (
-      system:
+  outputs = { self, nixpkgs, flake-utils, all-apps, ... } @ inputs:
+    flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = import nixpkgs { inherit system; };
-        localScripts = (import ./nix/apps.nix { inherit pkgs; }).all;
+
         serviceApps = all-apps.apps.${system};
       in
       {
-        # Automatically expose package defined in apps/flake.nix
+        # Expose app derivations
         packages = all-apps.packages.${system};
 
-        # Expose apps / binaries / executables
-        apps = localScripts // serviceApps;
+        # Expose CLI binaries
+        apps = serviceApps;
 
-        # Interactive shells
+        # Development Environment
         devShells = {
-          default = import ./shell.nix { inherit pkgs; };
+          default = import ./shell.nix {
+            inherit pkgs;
+            envName = "sandbox";
+            targetBranch = "sandbox";
+          };
+          prod = import ./shell.nix {
+            inherit pkgs;
+            envName = "prod";
+            targetBranch = "main";
+          };
         };
 
-        # Formatting
+        # Automatic Code Formatter
         formatter = pkgs.nixpkgs-fmt;
       }
     );

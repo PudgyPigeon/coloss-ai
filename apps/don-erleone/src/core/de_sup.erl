@@ -27,6 +27,12 @@ init([]) ->
     %% The HTTP Gateway
     ChildSpecs = [
         #{
+            id => pg,
+            start => {pg, start_link, []},
+            restart => permanent,
+            type => worker
+        },
+        #{
             id => de_front,
             start => {de_front, start_link, []},
             restart => permanent,

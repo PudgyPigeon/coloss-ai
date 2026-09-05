@@ -1,0 +1,6 @@
+gateway:
+  # Enable Envoy Gateway GatewayClass injection
+  gatewayClass:
+    install: true
+    name: eg
+    isDefault: true

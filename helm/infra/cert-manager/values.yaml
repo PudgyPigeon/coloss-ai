@@ -1,0 +1,8 @@
+cert-manager:
+  installCRDs: true
+  
+  # For local sandbox/development, we might not want to hammer Let's Encrypt,
+  # but here we set the baseline config
+  extraArgs:
+    - --dns01-recursive-nameservers-only
+    - --dns01-recursive-nameservers=8.8.8.8:53,1.1.1.1:53

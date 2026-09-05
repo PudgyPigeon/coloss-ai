@@ -1,6 +1,25 @@
 #!/usr/bin/env bash
-infra-up      # 1. Start Minikube & core infra
-load-images   # 2. Build and load custom images (don-erleone, etc.) into Minikube
-argocd-up     # 3. Spin up ArgoCD
-sync-helm     # 4. Push manifests to Gitea (ArgoCD will now find cached images)
-expose        # 5. Open tunnels and dashboards
+set -euo pipefail
+
+echo "=================================================="
+echo " 🌐 Swarm Cockpit Local Sandbox Setup Initializing"
+echo "=================================================="
+
+# 1. Start Gitea & Minikube
+infra-up
+
+# 2. Compile and load local Nix images into Minikube
+load-images
+
+# 3. Provision ArgoCD control plane
+argocd-up
+
+# 4. Push hydrated Helm manifests to Gitea
+sync-helm
+
+# 5. Open local networking tunnels
+expose
+
+echo "=================================================="
+echo " 🎉 Swarm Sandbox Deck is completely operational!"
+echo "=================================================="
