@@ -1,6 +1,8 @@
 # About
 Hermetic, deterministic, one-click Kubernetes cluster with Ollama + OpenWebUI + ArgoCD.
 
+Microservices and applications within apps directory with their own READMEs and infrastructure documentation.
+
 GPU integration may not work with your system - it depends on if your system mirrors the Nix settings 
 as declared here: https://github.com/PudgyPigeon/nix-base
 
