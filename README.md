@@ -1,3 +1,8 @@
+# NOTE!
+There may be drift between the apps microservices in this monorepo and other public microservice repos. 
+You may need to search the Justfile here in the root and run the reconciliation yourself to pull from the
+specific repos into this monorepo.
+
 # About
 Hermetic, deterministic, one-click Kubernetes cluster with Ollama + OpenWebUI + ArgoCD.
 
