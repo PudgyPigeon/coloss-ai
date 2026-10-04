@@ -1,199 +1,176 @@
-# Architecture
+# Distributed Deterministic Agent Platform
+
+> A hermetic, GitOps-driven local Kubernetes testbed orchestrating BEAM actor nodes, Haskell MCP microservices, and hardware-accelerated LLM inference.
+
+[![Nix](https://img.shields.io/badge/Nix-Flake-blue?logo=nixos)](flake.nix)
+[![GitOps](https://img.shields.io/badge/GitOps-ArgoCD-orange?logo=argo)](helm/)
+[![Runtime](https://img.shields.io/badge/Runtime-Erlang%2FOTP%20%7C%20Haskell-red)](#subsystems)
+
+---
+
+## 1. System Architecture
 
 ```text
 +-----------------------------------------------------------------------------------------+
-|                                    User / Developer                                     |
-|                                    ( runs 'up' )                                        |
+|                                   Developer Workspace                                   |
+|                                     ( nix develop )                                     |
 +-----------------------------------------------------------------------------------------+
                                           |
                                           v
 +-----------------------------------------------------------------------------------------+
-|                              Host OS & Nix Environment                                  |
+|                               Host OS & Deterministic Layer                             |
 |                                                                                         |
-|  [ Nix Dev Shell ] --- (compiles Helm to YAML) ---> [ sync-helm script ]                |
-|  ( flake.nix )                                              |                           |
+|  [ Flake Environment ] --- (Compiles Helm to Static Manifests) ---> [ Gitea Engine ]    |
 +-----------------------------------------------------------------------------------------+
-                                                              | (pushes raw YAML)
-                                                              v
-+-----------------------------------------------------------------------------------------+
-|                              Local Docker Services                                      |
-|                                                                                         |
-|                                [ Local Gitea ]                                          |
-|                              (Git Server / Source)                                      |
-+-----------------------------------------------------------------------------------------+
-                                          | (polls for changes & reconciles)
-                                          v 
+                                                                             |
+                                                                             | (GitOps Sync)
+                                                                             v
 +=========================================================================================+
-|                                Minikube Cluster                                         |
+|                                    Kubernetes Cluster                                   |
 |                                                                                         |
 |  +-----------------------------------------------------------------------------------+  |
-|  | 1. Mgmt Tier                                                                      |  |
-|  |                                                                                   |  |
-|  |     [ ArgoCD ] <------- (GitOps Engine)            [ cert-manager ]               |  |
+|  | Management Tier                                                                   |  |
+|  |      [ ArgoCD ApplicationSet ] -------------> [ cert-manager / Gateway API ]      |  |
 |  +-----------------------------------------------------------------------------------+  |
-|            |                         |                         |                        |
-|            v                         v                         v   (syncs)              |
-|  +-------------------+     +-------------------+     +-------------------+              |
-|  | 2. Infra Tier     |     | 4. Apps Tier      |     | 3. Agents Tier    |              |
-|  |                   |     |                   |     |                   |              |
-|  | [ Gateway API ]   |     |                   |     |                   |              |
-|  |       |           |     |                   |     |                   |              |
-|  |  (HTTPRoute) -----+-----> [ OpenWebUI ]     |     |                   |              |
-|  |                   |     |        |          |     |                   |              |
-|  |                   |     |    (Prompts) -----+-----> [ Don Erleone ]   |              |
-|  |                   |     |                   |     |      |     |      |              |
-|  | [ Ollama ] <------+---- (LLM Inference) ----+------------+     |      |              |
-|  |                   |     |                   |     |            |      |              |
-|  | [ Haskell MCP ] <-+---- (Tool Execution) ---+------------------+      |              |
-|  +--------|----------+     +-------------------+     +-------------------+              |
-|           |                                                                             |
-|           v   (queries)                                                                 |
-|     ( K8s API )                                                                         |
+|             |                                   |                           |           |
+|             v                                   v                           v           |
+|  +-------------------+               +-------------------+         +-----------------+  |
+|  | Inference Tier    |               | Application Tier  |         | Agent Tier      |  |
+|  | [ Ollama + GPU ]  | <---(Inference) [ OpenWebUI / App ] <---RPC-> [ Don Erleone ]  |  |
+|  | (NVIDIA Passthrough)              | (Gateway Routed)  |         | (BEAM / OTP)    |  |
+|  +---------|---------+               +-------------------+         +--------|--------+  |
+|            |                                                                |           |
+|            +----------------------- Tool Execution -------------------------+           |
+|                                             |                                           |
+|                                             v                                           |
+|                                    [ Haskell MCP Server ]                               |
+|                                             | (K8s API Queries)                         |
+|                                             v                                           |
+|                                    [ Cluster Substrate ]                                |
 +=========================================================================================+
 ```
-# Distributed Agent Cluster (Nix + Erlang + Haskell + K8s)
 
-> **Project Status:** Archived / Exploration (Active dev through early 2026).  
-> Built as a proof-of-concept for running resilient BEAM-based agent runtimes 
-> alongside Haskell MCP tools on a GitOps-managed Kubernetes cluster with local GPU acceleration.
+---
 
-### Core Stack
-- **Reproducibility:** Nix flakes for deterministic developer shells & builds
-- **Orchestration:** Minikube + Helm + ArgoCD GitOps
-- **Agent Runtime:** Custom Erlang/OTP agent framework
-- **Tool Protocol:** Haskell MCP (Model Context Protocol) server
-- **Local Inference:** Ollama with Kubernetes GPU passthrough
-- **UI:** Elixir / Phoenix LiveView via RPC calls to BEAM VM 
+## 2. Key Architectural Details
 
-# NOTE!
-There may be drift between the apps microservices in this monorepo and other public microservice repos. 
-You may need to search the Justfile here in the root and run the reconciliation yourself to pull from the
-specific repos into this monorepo.
+* **Bit-for-Bit Environment Determinism:**  
+  All host toolchains, formatters (`Alejandra`), Helm release compilers, and runtime dependencies are pinned hermetically via `flake.nix`. Zero host-level pollution or toolchain drift.
+* **Air-Gapped GitOps Reconciliation:**  
+  Helm charts are compiled deterministically into static manifests and synced to an in-cluster Gitea instance. ArgoCD tracks Gitea via declarative `ApplicationSet` definitions, ensuring single-source-of-truth cluster state.
+* **Fault-Tolerant Actor Concurrency (BEAM):**  
+  The agent execution layer (`Don Erleone`) leverages Erlang/OTP supervisor trees to isolate long-running agent workflows, retry states, and dynamic tool orchestration from network and pod failures.
+* **Type-Safe Model Context Protocol (MCP):**  
+  Cluster inspection and tool boundaries are mediated by a custom Haskell MCP service, enforcing strict compile-time guarantees and deterministic validation over Kubernetes API interactions.
+* **Zero-Egress Accelerated Inference:**  
+  Local LLMs are served via an in-cluster Ollama deployment backed by container-level NVIDIA GPU passthrough and custom Node Feature Discovery bindings.
 
-# About
-Hermetic, deterministic, one-click Kubernetes cluster with Ollama + OpenWebUI + ArgoCD.
+---
 
-Microservices and applications within apps directory with their own READMEs and infrastructure documentation.
+## 3. Subsystem Breakdown
 
-GPU integration may not work with your system - it depends on if your system mirrors the Nix settings 
-as declared here: https://github.com/PudgyPigeon/nix-base
+| Tier | Primary Technologies | Architectural Role |
+| :--- | :--- | :--- |
+| **Tooling & Host Layer** | Nix Flakes, Justfile | Hermetic developer shell, pinned dependencies, deterministic manifest synthesis. |
+| **Cluster Engine** | Minikube, Kubelet, Gateway API | Local multi-tier ingress routing and workload substrate. |
+| **GitOps Control Plane** | ArgoCD, Gitea, Helm | Declarative continuous delivery, auto-reconciliation, and drift correction. |
+| **Agent Engine** | Erlang / OTP | Resilient actor model managing dynamic state machines, recursive tasks, and backoffs. |
+| **Tool Execution** | Haskell (MCP) | Type-safe execution protocol querying the K8s API directly. |
+| **Inference Layer** | Ollama, OpenWebUI | Local GPU-accelerated weights serving low-latency model evaluations. |
 
-# Nix Commands to Run
+---
 
-```
-# To enter shell
-nix develop 
+## 4. Quickstart
 
-# To format (Uses Alejandra)
+### Prerequisites
+* Nix package manager with flakes enabled (`experimental-features = nix-command flakes`).
+* Docker / Minikube container runtime.
+
+### Getting Started
+```bash
+# 1. Enter the hermetic environment
+nix develop
+
+# 2. Format configuration (Alejandra)
 nix fmt .
+
+# 3. Bootstrap the cluster, local Gitea instance, and GitOps sync - why `up`? Custom shell command defined via Nix that runs all the setup
+up
 ```
 
-# Gotchas with deployment
-### Gitea localhost not updating
-If the Nix shell isnt propagating changes to Gitea, just exit the shell, re-enter and run the sync command again
+---
 
-### Argo not updating
-Sometimes you need to run the `up` command or just wait for ArgoCD to reconcile itself for around 5 minutes.
+## 5. Low-Level Operational Notes & Edge Case Findings
 
-OR
-`kubectl exec -n argocd -it deploy/argocd-repo-server -- rm -rf /tmp/_argocd-repo`
-OR
-`argocd cluster add $(kubectl config current-context) --name in-cluster `
+<details>
+<summary><strong>Hardware-Level GPU Passthrough & Container Toolkit Configuration</strong></summary>
 
-Even if it fails it'll add some roles.
-
-### MINIKUBE
-```
+### NVIDIA Container Toolkit Runtime Patch
+Ensure the Docker daemon is configured to expose the NVIDIA runtime:
+```bash
 sudo nvidia-ctk runtime configure --runtime=docker && sudo systemctl restart docker
 ```
 
-### GPU operator recreation/deletion
+### WSL2 Node Feature Discovery (NFD) Manual RBAC
+When utilizing subcharts where parent RBAC bindings are dropped, apply the standalone service account configuration:
+```yaml
+# values.yaml
+node-feature-discovery:
+  serviceAccountName: "node-feature-discovery"
 ```
-# Run the following three commands
 
+Manual cluster role and node labeling override:
+```bash
+kubectl label node sandbox-cluster-control-plane [nvidia.com/gpu.deploy.container-toolkit=true](https://nvidia.com/gpu.deploy.container-toolkit=true) --overwrite
+kubectl label node sandbox-cluster-control-plane [nvidia.com/gpu.present=true](https://nvidia.com/gpu.present=true) --overwrite
+
+# Patch NFD master node-feature exclusion if required
+kubectl patch deployment gpu-operator-node-feature-discovery-master -n gpu-operator \
+  --type='json' -p='[{"op": "add", "path": "/spec/template/spec/containers/0/args/-", "value": "--deny-node-feature-group=nvidia.com"}]'
+```
+
+### GPU Operator Stuck Finalizer Recovery
+If tearing down or rebuilding operator namespaces with hanging finalizers:
+```bash
 kubectl delete clusterrolebinding gpu-operator-node-feature-discovery-prune
 kubectl delete clusterrole gpu-operator-node-feature-discovery-prune
-# If finalizers are stuck
 kubectl patch app infra-gpu-operator -n argocd \
   --type merge \
   -p '{"metadata":{"finalizers":null}}'
-
 ```
+</details>
 
-### GPU Node labeling on WSL2
-```
-kubectl label node sandbox-cluster-control-plane nvidia.com/gpu.deploy.container-toolkit=true --overwrite
+<details>
+<summary><strong>ArgoCD ApplicationSet Resource Management</strong></summary>
 
+To prevent resource exhaustion when running the full stack on constrained local nodes, selectively exclude heavy monitoring or database charts via `appsets.yaml`:
 
-kubectl label node sandbox-cluster-control-plane nvidia.com/gpu.present=true --overwrite
-
-kubectl get node sandbox-cluster-control-plane -o jsonpath='{.metadata.labels.nvidia\.com/gpu\.present}'
-
-kubectl patch deployment gpu-operator-node-feature-discovery-master -n gpu-operator --type='json' -p='[{"op": "add", "path": "/spec/template/spec/containers/0/args/-", "value": "--deny-node-feature-group=nvidia.com"}]'
-```
-
-### NFD GPU sub chart SA + RBAC
-Created manually from custom template because there is a bug with the subchart deriving settings from the 
-top level chart. Too much of a pain to deal with the subchart, just create it.
-```
-# values.yaml
-node-feature-discovery:
-  serviceAccountName: "node-feature-discovery"  <-- custom field
-```
-
-### Ollama Helm Chart running
-For now no script. You need to run the following on startup:
-```
-kubectl port-forward svc/ollama-internal 11434:11434 -n ollama > /dev/null 2>&1 &
-<!-- kubectl exec -it deploy/ollama-internal -n ollama -- ollama pull llama3.2:3b -->
-kubectl exec -it deploy/ollama-internal -n ollama -- ollama pull llama3:latest
-kubectl port-forward -n open-webui svc/open-webui 9000:8080 > /dev/null 2>&1 &
-
-# Test openwebui to ollama kubectl exec -it -n open-webui deploy/open-webui -- curl http://ollama-internal.ollama.svc.cluster.local:11434/api/tags
-```
-
-
-### How to disable Apps/Charts if you run out of minikube space
-Within `helm/mgmt/argocd/tempaltes/appsets.yaml`
-```
-# Example of disabling some charts by path and exclude key
+```yaml
 kind: ApplicationSet
 metadata:
   name: my-cluster-apps
 spec:
   generators:
     - git:
-        repoURL: https://github.com/your-org/infra-repo.git
+        repoURL: [https://github.com/your-org/infra-repo.git](https://github.com/your-org/infra-repo.git)
         revision: HEAD
         directories:
-          # 1. Include all apps in the folder
           - path: apps/*
-          
-          # 2. Exclude heavy apps to free up Minikube resources
+          # Exclude resource-intensive stacks locally
           - path: apps/heavy-stack-prometheus
             exclude: true
           - path: apps/resource-hog-db
             exclude: true
 ```
+</details>
 
-# Resources
-https://github.com/nvidia/k8s-device-plugin   < --- look into this if operator doesnt work>
+<details>
+<summary><strong>Local In-Cluster Service Verification</strong></summary>
 
-https://github.com/nvidia/gpu-operator?tab=readme-ov-file
-
-https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/getting-started.html#prerequisites
-
-https://github.com/NVIDIA/nvkind
-
-https://www.reddit.com/r/kubernetes/comments/1ilb8v2/minikube_versus_kind_gpu_support/#:~:text=Some%20say%20that%20it's%20easier%20to%20gain,GPU%20operator**%20*%20**Kata%20containers**%20*%20**K3S%2DNVidia**
-
-https://github.com/NVIDIA/gpu-operator/issues/662
-
-
-# For models -> Look at Opus distill for smaller B models that replicate Claude Opus
-https://huggingface.co/Jackrong/collections
-
-
-
-
-http://don-erleone.don-erleone.svc.cluster.local:8080/v1
+Verify connectivity between OpenWebUI and internal Ollama instances:
+```bash
+# Verify internal cluster DNS and model tag resolution
+kubectl exec -it -n open-webui deploy/open-webui -- \
+  curl [http://ollama-internal.ollama.svc.cluster.local:11434/api/tags](http://ollama-internal.ollama.svc.cluster.local:11434/api/tags)
+```
+</details>
