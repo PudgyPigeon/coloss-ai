@@ -1,4 +1,7 @@
-# Distributed Deterministic Agent Platform
+# Coloss-AI - Distributed Deterministic Agent Platform
+
+![Logo](dashboard.png)
+<video src="apps/don-erleone/wire-dashboard.mp4"/>
 
 > A hermetic, GitOps-driven local Kubernetes testbed orchestrating BEAM actor nodes, Haskell MCP microservices, and hardware-accelerated LLM inference.
 
