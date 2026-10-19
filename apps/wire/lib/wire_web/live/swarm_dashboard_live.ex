@@ -114,7 +114,7 @@ defmodule WireWeb.SwarmDashboardLive do
   end
 
   @impl true
-  def handle_info({:telemetry_event, event, measurements metadata}, socket) do
+  def handle_info({:telemetry_event, event, measurements, metadata}, socket) do
     event_name = Enum.join(event, "")
     measurements_str = inspect(measurements)
     metadata_str = inspect(metadata, limit: 5, printable_list: 100)
