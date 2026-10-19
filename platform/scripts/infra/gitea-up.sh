@@ -1,7 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [ ! "$(docker ps -aq -f name="${GIT_SERVICE_NAME}")" ]; then
+: "${GIT_SERVICE_NAME:=gitea}"
+: "${GIT_PORT:=3000}"
+: "${GIT_USER:=gitea_admin}"
+: "${GIT_PASS:=AdminPassword123!}"
+
+if [ ! "$(docker ps -aq -f name="^/${GIT_SERVICE_NAME}$")" ]; then
   echo "=================================================="
   echo " 🚀 Launching Gitea service with Push-to-Create..."
   echo "=================================================="
@@ -16,17 +21,20 @@ if [ ! "$(docker ps -aq -f name="${GIT_SERVICE_NAME}")" ]; then
     gitea/gitea:latest
 
   echo "⏳ Waiting for Gitea startup checks to complete..."
-  until docker exec "${GIT_SERVICE_NAME}" curl -s http://localhost:3000 > /dev/null; do
+  until docker exec "${GIT_SERVICE_NAME}" curl -sf http://localhost:3000/api/healthz > /dev/null 2>&1; do
     sleep 2
   done
 
   echo "👤 Creating cluster administrator profile..."
-  docker exec -u 1000 "${GIT_SERVICE_NAME}" /usr/local/bin/gitea admin user create \
-    --username "${GIT_USER}" \
-    --password "${GIT_PASS}" \
-    --email "${GIT_USER}@cluster.local" \
-    --admin \
-    --must-change-password=false || true
+  docker exec -u 1000 "${GIT_SERVICE_NAME}" \
+    /usr/local/bin/gitea admin user create \
+      --work-path /data/gitea \
+      --config /data/gitea/conf/app.ini \
+      --username "${GIT_USER}" \
+      --password "${GIT_PASS}" \
+      --email "${GIT_USER}@cluster.local" \
+      --admin \
+      --must-change-password=false
 
   echo "✅ Gitea engine is ready. Push-to-Create is active."
 else
