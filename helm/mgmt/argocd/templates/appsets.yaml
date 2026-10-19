@@ -13,6 +13,10 @@ spec:
         # This looks for directories in the 'infra' folder of your Gitea repo
         directories:
           - path: "infra/*"
+{{ range .Values.infra.exclude }}
+          - path: "infra/{{ . }}"
+            exclude: true
+{{ end }}
   template:
     metadata:
       name: "infra-{{`{{.path.basename}}`}}"

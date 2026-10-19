@@ -40,3 +40,30 @@ if [ ! "$(docker ps -aq -f name="^/${GIT_SERVICE_NAME}$")" ]; then
 else
   echo "🚀 Gitea container is already running."
 fi
+
+GITEA_CMD=(
+  docker exec -u 1000 "${GIT_SERVICE_NAME}"
+  /usr/local/bin/gitea
+  --work-path /data/gitea
+  --config /data/gitea/conf/app.ini
+)
+
+GITEA_USERS=$("${GITEA_CMD[@]}" admin user list)
+if printf '%s\n' "$GITEA_USERS" |
+  awk -v username="${GIT_USER}" 'NR > 1 && $2 == username { found = 1 } END { exit !found }'; then
+  echo "🔑 Updating cluster administrator credentials..."
+  "${GITEA_CMD[@]}" admin user change-password \
+    --username "${GIT_USER}" \
+    --password "${GIT_PASS}" \
+    --must-change-password=false
+else
+  echo "👤 Creating cluster administrator profile..."
+  "${GITEA_CMD[@]}" admin user create \
+    --username "${GIT_USER}" \
+    --password "${GIT_PASS}" \
+    --email "${GIT_USER}@cluster.local" \
+    --admin \
+    --must-change-password=false
+fi
+
+echo "✅ Gitea engine is ready. Push-to-Create is active."

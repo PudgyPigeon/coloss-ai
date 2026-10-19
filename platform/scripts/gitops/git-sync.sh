@@ -31,7 +31,7 @@ echo "📂 Initializing Git repository on branch: $TARGET_BRANCH"
 "$GIT_BIN" checkout -b "$TARGET_BRANCH" -q
 "$GIT_BIN" add .
 
-if "$GIT_BIN" diff-index --quiet HEAD --; then
+if "$GIT_BIN" diff --cached --quiet; then
   echo " ℹ️  No changes to commit. Cluster matches state."
   exit 0
 fi

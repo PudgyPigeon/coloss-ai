@@ -7,15 +7,9 @@ global:
   clusterServer: "https://kubernetes.default.svc"
 
 infra:
-  projectName: "infra-project"
-  apps:
-    - name: "cert-manager"
-    - name: "ingress-nginx"
-
-apps:
-  projectName: "apps-project"
-  services:
-    - name: "market-data-feed-rs"
+  exclude:
+    - cert-manager
+    - metrics-server
 
 git:
   enable: true
