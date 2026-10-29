@@ -18,8 +18,24 @@ What do you get?
 [![Runtime](https://img.shields.io/badge/Runtime-Erlang%2FOTP%20%7C%20Haskell-red)](#subsystems)
 
 ---
+## Quickstart
 
-## 1. System Architecture
+### Prerequisites
+* Nix package manager with flakes enabled (`experimental-features = nix-command flakes`).
+* Docker / Minikube container runtime.
+
+### Getting Started
+```bash
+# 1. Enter the hermetic environment
+nix develop
+
+# 2. Format configuration (Alejandra)
+nix fmt .
+
+# 3. Bootstrap the cluster, local Gitea instance, and GitOps sync - why `up`? Custom shell command defined via Nix that runs all the setup
+up
+```
+## System Architecture
 
 ```text
 +-----------------------------------------------------------------------------------------+
@@ -63,7 +79,7 @@ What do you get?
 
 ---
 # AI Generated jargon below
-## 2. Key Architectural Details
+## Key Architectural Details
 
 * **Bit-for-Bit Environment Determinism:**  
   All host toolchains, formatters (`Alejandra`), Helm release compilers, and runtime dependencies are pinned hermetically via `flake.nix`. Zero host-level pollution or toolchain drift.
@@ -78,7 +94,7 @@ What do you get?
 
 ---
 
-## 3. Subsystem Breakdown
+## Subsystem Breakdown
 
 | Tier | Primary Technologies | Architectural Role |
 | :--- | :--- | :--- |
@@ -91,27 +107,7 @@ What do you get?
 
 ---
 
-## 4. Quickstart
-
-### Prerequisites
-* Nix package manager with flakes enabled (`experimental-features = nix-command flakes`).
-* Docker / Minikube container runtime.
-
-### Getting Started
-```bash
-# 1. Enter the hermetic environment
-nix develop
-
-# 2. Format configuration (Alejandra)
-nix fmt .
-
-# 3. Bootstrap the cluster, local Gitea instance, and GitOps sync - why `up`? Custom shell command defined via Nix that runs all the setup
-up
-```
-
----
-
-## 5. Low-Level Operational Notes & Edge Case Findings
+## Low-Level Operational Notes & Edge Case Findings
 
 <details>
 <summary><strong>Hardware-Level GPU Passthrough & Container Toolkit Configuration</strong></summary>
