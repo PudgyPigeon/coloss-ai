@@ -1,9 +1,17 @@
-# Coloss-AI - Distributed Deterministic Agent Platform
+# Coloss-AI - Press one button and create a whole infrastructure department
+
+> Type 'up' in your terminal, press enter, and watch the magic unfold.
+
+What do you get?
+- Kubernetes Cluster via Minikube
+- ArgoCD and Gitops
+- Erlang backend for LLM messaging
+- OpenWebUI for chat all hooked up to the backend
+- Ollama for AI serving
+- Haskell MCP server for K8S API read access
+- Dashboard in Elixir to read Erlang and LLM telemetry
 
 ![Wire Dashboard GIF](wire-dashboard.gif)
-
-
-> A hermetic, GitOps-driven local Kubernetes testbed orchestrating BEAM actor nodes, Haskell MCP microservices, and hardware-accelerated LLM inference.
 
 [![Nix](https://img.shields.io/badge/Nix-Flake-blue?logo=nixos)](flake.nix)
 [![GitOps](https://img.shields.io/badge/GitOps-ArgoCD-orange?logo=argo)](helm/)
@@ -54,7 +62,7 @@
 ```
 
 ---
-
+# AI Generated jargon below
 ## 2. Key Architectural Details
 
 * **Bit-for-Bit Environment Determinism:**  
