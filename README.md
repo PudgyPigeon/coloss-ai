@@ -243,11 +243,12 @@ kubectl exec -it -n open-webui deploy/open-webui -- \
 
 This project was used as a testbed to evaluate where LLM coding assistants fail when building distributed infrastructure:
 
-1. **Failure on Niche Language Semantics (Erlang & Nix):** 
+1. **Failure on Niche Language Semantics (Erlang, Haskell, Nix):** 
    - LLMs struggled with Erlang’s binary pattern matching. Copilot and Opus routinely hallucinated broken implementations of HTTP chunked Server-Sent Events (SSE) from the Ollama `/chat` endpoint via `gun`. They failed to account for partial TCP packet fragmentation (`<<...>>`), requiring manual tail-recursive byte buffers to correctly slice incoming JSON frames.
    - LLMs systematically generated invalid or overly verbose Nix code, frequently requiring manual refactoring from scratch rather than agentic debugging loops.
 2. **Idiomatic Code Quality (Anti-Patterns):**
    - In Erlang, models defaulted to 100+ line nested `case/switch` blocks rather than idiomatic function-head pattern matching and multi-clause guards.
+   - In Haskell, functions were overly recursive and chained when simpler algorithms sufficed. Data structures were defined in-line unless explictitly noted beforehand.
 3. **Macro-Architecture & Boundary Blindness:**
    - LLMs were incapable of reasoning about multi-service directory structures, Helm chart hierarchies, or network trust boundaries. Architecture and topology had to be authored by hand before any agentic workflow could produce functional code.
 
