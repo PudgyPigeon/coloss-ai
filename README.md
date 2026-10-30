@@ -112,7 +112,7 @@ up
 # Key Architectural Details
 
 * **Exact, Reproducible Environments:**  
-  No more "it works on my machine!". If you have Nix, you have Flakes, you run this thing, it works. Badda bing badda boom.
+  No more "it works on my machine!". If you have Nix, it will work.
 * **Air-Gapped GitOps Reconciliation:**  
   Helm charts are compiled into static manifests and synced to an in-cluster Gitea instance. ArgoCD tracks Gitea via declarative `ApplicationSet` definitions, and uses it as a local cluster level reconciler of state. This leads the way to great push-based scalability the more clusters you have within your fleet. 
 * **Large Scale, Resilient Concurrency (BEAM):**  
