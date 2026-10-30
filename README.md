@@ -252,4 +252,4 @@ This project was used as a testbed to evaluate where LLM coding assistants fail 
 3. **Macro-Architecture & Boundary Blindness:**
    - LLMs were incapable of reasoning about multi-service directory structures, Helm chart hierarchies, or network trust boundaries. Architecture and topology had to be authored by hand before any agentic workflow could produce functional code.
 
-> **Takeaway:** LLMs accelerate boilerplate generation, but they lack architectural taste, struggle with non-mainstream language paradigms, and fail at complex network boundary conditions. Rigorous human system design remains essential.
+> **Takeaway:** AI can greatly accelerate productivity in certain scenarios and with skilled usage or toolchains. LLMs excel at boilerplate generation, but they lack architectural taste, struggle with non-mainstream language paradigms, and fail at complex network boundary conditions. Rigorous human system design remains essential in the long term.
