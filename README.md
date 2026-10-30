@@ -92,9 +92,49 @@ up
 |            |                          [ Haskell MCP Server ]                            |
 |            +-----------------------------------| (K8s API Queries)                      |
 |                                                v                                        |
-|                                       [ Cluster Substrate ]                             |
+|                                       [ Kubernetes Cluster API ]                             |
 +=========================================================================================+
 ```
+---
+## Key Architecture Decisions
+
+### 1. Deterministic Toolchains & Schema Validation (Nix & Haskell)
+- **Hermetic Environment (`flake.nix`):** Ensures bit-for-bit reproducibility across local development machines, pinning CLI toolchains, Helm release compilers, and formatting tools.
+- **Type-Safe Tool Gateway (Haskell MCP):** Writing directly to the Kubernetes API requires strict boundary safety. Haskell’s static type system enforces compile-time schema validation over raw JSON-RPC payloads before any state-mutating requests reach `kube-apiserver`.
+
+### 2. Failure Isolation & Concurrency (Erlang/OTP & Elixir)
+- **Fault-Tolerant Agent Loops:** LLM token streams and dynamic tool executions are inherently non-deterministic and prone to network stalls. Erlang/OTP supervisor trees isolate long-running agent workflows so that an unhandled timeout or upstream socket drop restarts an isolated worker process without crashing the session state.
+- **Cross-Service Telemetry:** The BEAM allows frictionless RPC communication between the Erlang agent runtime and the Elixir dashboard, avoiding the need for heavy local telemetry collectors during initial development.
+
+### 3. Local GitOps Loop (Gitea + ArgoCD vs. `kubectl apply`)
+- **Realistic Reconciliation Testing:** Validating automated GitOps workflows requires an actual remote repository to simulate commits, sync loops, and automated reconciliation without pushing proprietary or experimental manifests to a public remote.
+- **Isolated Control Plane:** Running Gitea directly alongside the cluster isolates the manifest delivery pipeline entirely within the local testbed.
+
+---
+
+## Technical Trade-Offs & Architectural Friction
+
+- **Orchestration Overlap (K8s vs. BEAM):** Running Erlang clustering inside Kubernetes introduces competing responsibilities: Kubernetes manages pod lifecycle and container networking, while the BEAM manages internal node discovery and actor distribution. In production, this duel of orchestration layers can lead to split-brain scenarios or redundant health checks.
+- **BEAM Flat Module Namespace & In-VM Trust Boundaries:** The BEAM provides crash and heap isolation, not security sandboxing. All exported functions across loaded modules are globally addressable within the VM. To mitigate arbitrary execution risks from agent tool calls, security isolation is strictly delegated outward to Kubernetes pod/namespace boundaries rather than relying on in-VM multi-tenancy.
+- **Developer Onboarding & Tooling Friction:** 
+  - **Nix & Haskell:** Provide mathematically sound guarantees and reproducible environments, but carry steep onboarding curves, slow cold-cache build times, and fragmented ecosystem libraries for cloud orchestration.
+  - **Memory Safety in Haskell:** Care is required to prevent space leaks caused by lazy evaluation and unreduced thunks in long-running streaming loops.
+
+---
+
+## Practical Findings: The Limits of LLM-Assisted Systems Engineering
+
+This project was used as a testbed to evaluate where LLM coding assistants fail when building distributed infrastructure:
+
+1. **Failure on Niche Language Semantics (Erlang & Nix):** 
+   - LLMs struggled with Erlang’s binary pattern matching. Copilot and Opus routinely hallucinated broken implementations of HTTP chunked Server-Sent Events (SSE) from the Ollama `/chat` endpoint via `gun`. They failed to account for partial TCP packet fragmentation (`<<...>>`), requiring manual tail-recursive byte buffers to correctly slice incoming JSON frames.
+   - LLMs systematically generated invalid or overly verbose Nix code, frequently requiring manual refactoring from scratch rather than agentic debugging loops.
+2. **Idiomatic Code Quality (Anti-Patterns):**
+   - In Erlang, models defaulted to 100+ line nested `case/switch` blocks rather than idiomatic function-head pattern matching and multi-clause guards.
+3. **Macro-Architecture & Boundary Blindness:**
+   - LLMs were incapable of reasoning about multi-service directory structures, Helm chart hierarchies, or network trust boundaries. Architecture and topology had to be authored by hand before any agentic workflow could produce functional code.
+
+> **Takeaway:** LLMs accelerate boilerplate generation, but they lack architectural taste, struggle with non-mainstream language paradigms, and fail at complex network boundary conditions. Rigorous human system design remains essential.
 
 ---
 # Key Architectural Details
