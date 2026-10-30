@@ -40,66 +40,91 @@ up
 ```text
 +-----------------------------------------------------------------------------------------+
 |                                   Developer Workspace                                   |
-|                                     ( nix develop )                                     |
+|                          ( nix develop  |  Host Web Browser )                           |
 +-----------------------------------------------------------------------------------------+
-                                          |
-                                          v
-+-----------------------------------------------------------------------------------------+
-|                               Host OS & Deterministic Layer                             |
-|                                                                                         |
-|  [ Flake Environment ] --- (Compiles Helm to Static Manifests) ---> [ Gitea Engine ]    |
-+-----------------------------------------------------------------------------------------+
-                                                                             |
-                                                                             | (GitOps Sync)
-                                                                             v
-+=========================================================================================+
-|                                    Kubernetes Cluster                                   |
-|                                                                                         |
-|  +-----------------------------------------------------------------------------------+  |
-|  | Management Tier                                                                   |  |
-|  |      [ ArgoCD ApplicationSet ] -------------> [ cert-manager / Gateway API ]      |  |
+       |                                                                    ^
+       |                                                                    | (Browser Access)
+       v                                                                    |
++---------------------------------------------------------------------------|-------------+
+|                              Host OS & Deterministic Layer                |             |
+|                                                                           |             |
+|   [ Flake Environment ] --- (Compiles Helm to Static Manifests) --+       |             |
++-------------------------------------------------------------------|-------|-------------+
+                                                                    |       |
+                                                                    | (Git) |
+                                                                    v       |
++-----------------------------------------------------------------------+   |
+|                            Git Repository                             |   |
+|                                                                       |   |
+|                           [ Gitea Server ]                            |   |
++-----------------------------------------------------------------------+   |
+                                    |                                       |
+                                    | (GitOps Sync)                         |
+                                    v                                       |
++===========================================================================|=============+
+|                              Kubernetes Cluster                           |             |
+|                                                                           |             |
+|  +------------------------------------------------------------------------|----------+  |
+|  | Host Port Exposure / Ingress Layer                                     |          |  |
+|  |     ArgoCD UI:            localhost:8888  <----------------------------+          |  |
+|  |     OpenWebUI Chat:       localhost:9000  <----------------------------+          |  |
+|  |     Telemetry Dashboard:  localhost:4000  <----------------------------+          |  |
 |  +-----------------------------------------------------------------------------------+  |
 |             |                                   |                           |           |
-|             v                                   v                           v           |
-|  +-------------------+               +-------------------+         +-----------------+  |
-|  | Inference Tier    |               | Application Tier  |         | Agent Tier      |  |
-|  | [ Ollama + GPU ]  | <---(Inference) [ OpenWebUI / App ] <---RPC-> [ Don Erleone ]  |  |
-|  | (NVIDIA Passthrough)              | (Gateway Routed)  |         | (BEAM / OTP)    |  |
-|  +---------|---------+               +-------------------+         +--------|--------+  |
-|            |                                                                |           |
-|            +----------------------- Tool Execution -------------------------+           |
-|                                             |                                           |
-|                                             v                                           |
-|                                    [ Haskell MCP Server ]                               |
-|                                             | (K8s API Queries)                         |
-|                                             v                                           |
-|                                    [ Cluster Substrate ]                                |
+|             | (Manages Apps)                    |                           |           |
+|             v                                   |                           |           |
+|  +----------------------+                       |                           |           |
+|  | GitOps Engine        |                       |                           |           |
+|  | [ ArgoCD Server/App ]|                       |                           |           |
+|  | (:8888)              |                       |                           |           |
+|  +----------|-----------+                       |                           |           |
+|             |                                   v                           v           |
+|             |                        +-------------------+         +-----------------+  |
+|             |                        | Application Tier  |         | Dashboard Tier  |  |
+|             |                        | [ OpenWebUI ]     |         | [ Elixir Dash ] |  |
+|             |                        | (:9000)           |         | (:4000)         |  |
+|             |                        +---------|---------+         +--------^--------+  |
+|             |                                  |                            |           |
+|             |                                  | <---(RPC / Telemetry)------+           |
+|             v                                  v                            |           |
+|  +-------------------+               +-------------------+                  |           |
+|  | Inference Tier    | <--(Inference)| Agent Tier        | -----------------+           |
+|  | [ Ollama + GPU ]  |               | [ Don Erleone ]   |                              |
+|  | (:11434 internal) |               | (BEAM / OTP)      |                              |
+|  +---------|---------+               +---------|---------+                              |
+|            |                                   |                                        |
+|            +---------------- Tool Calls -------+                                        |
+|                                |                                                        |
+|                                v                                                        |
+|                       [ Haskell MCP Server ]                                            |
+|                                | (K8s API Queries)                                      |
+|                                v                                                        |
+|                       [ Cluster Substrate ]                                             |
 +=========================================================================================+
 ```
 
 ---
-# AI Generated jargon below
-## Key Architectural Details
+# Key Architectural Details
 
-* **Bit-for-Bit Environment Determinism:**  
-  All host toolchains, formatters (`Alejandra`), Helm release compilers, and runtime dependencies are pinned hermetically via `flake.nix`. Zero host-level pollution or toolchain drift.
+* **Exact, Reproducible Environments:**  
+  No more "it works on my machine!". If you have Nix, you have Flakes, you run this thing, it works. Badda bing badda boom.
 * **Air-Gapped GitOps Reconciliation:**  
-  Helm charts are compiled deterministically into static manifests and synced to an in-cluster Gitea instance. ArgoCD tracks Gitea via declarative `ApplicationSet` definitions, ensuring single-source-of-truth cluster state.
-* **Fault-Tolerant Actor Concurrency (BEAM):**  
-  The agent execution layer (`Don Erleone`) leverages Erlang/OTP supervisor trees to isolate long-running agent workflows, retry states, and dynamic tool orchestration from network and pod failures.
+  Helm charts are compiled into static manifests and synced to an in-cluster Gitea instance. ArgoCD tracks Gitea via declarative `ApplicationSet` definitions, and uses it as a local cluster level reconciler of state. This leads the way to great push-based scalability the more clusters you have within your fleet. 
+* **Large Scale, Resilient Concurrency (BEAM):**  
+  The AI/LLM backend messaging and routing layer (`Don Erleone`) leverages Erlang/OTP supervisor trees to isolate long-running agent workflows, retry states, and dynamic tool orchestration from network and pod failures. Basically, imagine a technology that is used specifically to power telecommunications used for your LLM messaging streams.
 * **Type-Safe Model Context Protocol (MCP):**  
-  Cluster inspection and tool boundaries are mediated by a custom Haskell MCP service, enforcing strict compile-time guarantees and deterministic validation over Kubernetes API interactions.
+  Cluster inspection and tool boundaries are created with a custom Haskell MCP service, enforcing strict compile-time guarantees and deterministic validation over Kubernetes API interactions. This means that if it's proved to work once within Haskell, it will work forever. Mathematically provable and true to the end of days.
 * **Zero-Egress Accelerated Inference:**  
-  Local LLMs are served via an in-cluster Ollama deployment backed by container-level NVIDIA GPU passthrough and custom Node Feature Discovery bindings.
-
+  Local LLMs are served via an in-cluster Ollama deployment backed by container-level NVIDIA GPU passthrough.
+  Setting up LLM and NVIDIA CUDA drivers is painful, but this setup does it for you.
 ---
 
 ## Subsystem Breakdown
 
 | Tier | Primary Technologies | Architectural Role |
 | :--- | :--- | :--- |
-| **Tooling & Host Layer** | Nix Flakes, Justfile | Hermetic developer shell, pinned dependencies, deterministic manifest synthesis. |
-| **Cluster Engine** | Minikube, Kubelet, Gateway API | Local multi-tier ingress routing and workload substrate. |
+| **Tooling & Host Layer** | Nix Flakes, Justfile | 1-to-1 reproducible developer shell, pinned dependencies, deterministic code artifacts. |
+| **Cluster Engine** | Minikube, Kubelet | Mirror your cloud setup locally, enabling faster testing and development parity |
 | **GitOps Control Plane** | ArgoCD, Gitea, Helm | Declarative continuous delivery, auto-reconciliation, and drift correction. |
 | **Agent Engine** | Erlang / OTP | Resilient actor model managing dynamic state machines, recursive tasks, and backoffs. |
 | **Tool Execution** | Haskell (MCP) | Type-safe execution protocol querying the K8s API directly. |
